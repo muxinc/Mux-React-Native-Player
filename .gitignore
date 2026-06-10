@@ -1,0 +1,14 @@
+node_modules/
+build/
+coverage/
+.DS_Store
+*.log
+.env
+.expo/
+.claude/
+ios/Pods/
+example/.expo/
+example/.env
+example/android/
+example/ios/
+example/node_modules/

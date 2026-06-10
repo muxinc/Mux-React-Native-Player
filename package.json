@@ -1,0 +1,68 @@
+{
+  "name": "@mux/mux-react-native-player",
+  "version": "0.1.0",
+  "description": "Mux-owned React Native video player powered by Mux Player for iOS and Android.",
+  "license": "MIT",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "react-native": "src/index.ts",
+  "source": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./build/index.d.ts",
+      "react-native": "./src/index.ts",
+      "default": "./build/index.js"
+    },
+    "./plugin": "./plugin/index.js"
+  },
+  "files": [
+    "android/build.gradle",
+    "android/src",
+    "build/**/*.{js,d.ts,d.ts.map}",
+    "ios/*.{h,m,mm,swift}",
+    "plugin",
+    "src",
+    "expo-module.config.json",
+    "MuxReactNativePlayer.podspec",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check:plugin": "node --check plugin/withMuxReactNativePlayer.js",
+    "example:install": "npm --prefix example install",
+    "example:robots": "npm --prefix example run robots",
+    "example:ios:prebuild": "npm --prefix example run prebuild:ios -- --clean",
+    "example:ios": "npm --prefix example run ios",
+    "example:ios:build": "npm --prefix example run ios:build",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
+  },
+  "keywords": [
+    "mux",
+    "react-native",
+    "expo",
+    "video",
+    "player"
+  ],
+  "peerDependencies": {
+    "expo": "*",
+    "expo-linear-gradient": "*",
+    "expo-modules-core": "*",
+    "react": "*",
+    "react-native": "*"
+  },
+  "devDependencies": {
+    "@expo/config-plugins": "^55.0.8",
+    "@types/react": "^19.2.14",
+    "expo": "^55.0.23",
+    "expo-linear-gradient": "^55.0.13",
+    "expo-modules-core": "^55.0.25",
+    "react": "19.2.0",
+    "react-native": "0.83.6",
+    "typescript": "~5.9.2",
+    "vitest": "^3.1.4"
+  }
+}

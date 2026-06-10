@@ -1,0 +1,13 @@
+{
+  "platforms": ["ios", "android"],
+  "apple": {
+    "modules": ["MuxReactNativePlayerModule"],
+    "podspecPath": "MuxReactNativePlayer.podspec"
+  },
+  "ios": {
+    "modules": ["MuxReactNativePlayerModule"]
+  },
+  "android": {
+    "modules": ["com.mux.reactnativeplayer.MuxReactNativePlayerModule"]
+  }
+}

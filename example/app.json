@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "Mux React Native Player Example",
+    "slug": "mux-react-native-player-example",
+    "scheme": "muxrnplayer",
+    "version": "0.1.0",
+    "orientation": "default",
+    "jsEngine": "hermes",
+    "ios": {
+      "bundleIdentifier": "com.mux.reactnativeplayer.example",
+      "infoPlist": {
+        "CFBundleDisplayName": "Mux React Native Player",
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ]
+      }
+    },
+    "android": {
+      "package": "com.mux.reactnativeplayer.example"
+    },
+    "plugins": [
+      [
+        "@mux/mux-react-native-player/plugin",
+        {
+          "enablePictureInPicture": true
+        }
+      ],
+      "expo-asset",
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

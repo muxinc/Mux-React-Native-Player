@@ -1,0 +1,41 @@
+{
+  "name": "mux-react-native-player-example",
+  "private": true,
+  "version": "0.1.0",
+  "main": "expo-router/entry",
+  "scripts": {
+    "android": "expo run:android",
+    "ios": "node scripts/run-ios.cjs",
+    "ios:build": "xcodebuild -workspace ios/MuxReactNativePlayer.xcworkspace -scheme MuxReactNativePlayerExample -configuration Debug -sdk iphonesimulator -destination generic/platform=iOS\\ Simulator -derivedDataPath build/DerivedData build CODE_SIGNING_ALLOWED=NO -quiet",
+    "ios:launch": "expo run:ios --binary build/DerivedData/Build/Products/Debug-iphonesimulator/MuxReactNativePlayerExample.app",
+    "ios:metro": "expo start --clear --host localhost --port 8081",
+    "ios:expo": "expo run:ios --scheme MuxReactNativePlayerExample",
+    "robots": "node scripts/robots-server.cjs",
+    "start": "expo start",
+    "prebuild": "expo prebuild",
+    "prebuild:ios": "expo prebuild --platform ios"
+  },
+  "dependencies": {
+    "@mux/mux-react-native-player": "file:..",
+    "@shopify/flash-list": "^2.3.1",
+    "expo": "~55.0.26",
+    "expo-asset": "~55.0.17",
+    "expo-constants": "~55.0.16",
+    "expo-linear-gradient": "~55.0.14",
+    "expo-linking": "~55.0.15",
+    "expo-modules-core": "~55.0.25",
+    "expo-router": "~55.0.16",
+    "expo-screen-orientation": "~55.0.16",
+    "expo-status-bar": "~55.0.6",
+    "promise": "^8.3.0",
+    "react": "19.2.0",
+    "react-native": "0.83.6",
+    "react-native-safe-area-context": "~5.6.2",
+    "react-native-screens": "~4.23.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "babel-preset-expo": "~55.0.22",
+    "typescript": "~5.9.2"
+  }
+}
