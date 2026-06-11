@@ -1830,15 +1830,23 @@ function SkipIcon({
   seconds: number;
   size: number;
 }) {
+  const arrowFontSize = Math.round(size * 0.66);
+  const numberFontSize = Math.round(size * 0.24);
   return (
-    <View pointerEvents="none" style={{ alignItems: 'center', justifyContent: 'center' }}>
+    <View
+      pointerEvents="none"
+      style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}
+    >
       <Text
         allowFontScaling={false}
         style={{
           color,
-          fontSize: Math.round(size * 0.5),
-          fontWeight: '700',
-          lineHeight: Math.round(size * 0.5),
+          fontSize: arrowFontSize,
+          // Generous line height so the tall ↺/↻ glyphs are never clipped.
+          lineHeight: size,
+          fontWeight: '600',
+          textAlign: 'center',
+          includeFontPadding: false,
         }}
       >
         {direction === 'back' ? '↺' : '↻'}
@@ -1846,10 +1854,12 @@ function SkipIcon({
       <Text
         allowFontScaling={false}
         style={{
+          position: 'absolute',
           color,
-          fontSize: Math.round(size * 0.26),
+          fontSize: numberFontSize,
           fontWeight: '800',
-          marginTop: 1,
+          textAlign: 'center',
+          includeFontPadding: false,
         }}
       >
         {seconds}
