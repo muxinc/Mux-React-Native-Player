@@ -783,6 +783,10 @@ export function MuxVideoControls({
     activeRobotsPanel === 'summary' || activeRobotsPanel === 'transcript'
       ? summaryPanelMaxHeight
       : defaultPanelMaxHeight;
+  // The settings panel is anchored above the bottom bar; cap it to the space
+  // left in the video view so its top doesn't get clipped on short (inline) layouts.
+  const settingsPanelMaxHeight =
+    containerHeight > 0 ? Math.max(96, Math.floor(containerHeight - 48)) : 280;
 
   return (
     <View
@@ -1169,6 +1173,7 @@ export function MuxVideoControls({
                         backgroundColor={controlsTheme.buttonBackgroundColor}
                         currentMaxResolution={source?.maxResolution}
                         currentRate={status.playbackRate}
+                        maxHeight={settingsPanelMaxHeight}
                         onSelectRate={selectPlaybackRate}
                         onSelectResolution={selectMaxResolution}
                         showQuality={showQualityControl}
@@ -1620,6 +1625,7 @@ function SettingsPanel({
   backgroundColor,
   currentMaxResolution,
   currentRate,
+  maxHeight,
   onSelectRate,
   onSelectResolution,
   showQuality,
@@ -1630,6 +1636,7 @@ function SettingsPanel({
   backgroundColor: string;
   currentMaxResolution?: MuxMaxResolution;
   currentRate: number;
+  maxHeight: number;
   onSelectRate: (rate: number) => void;
   onSelectResolution: (resolution?: MuxMaxResolution) => void;
   showQuality: boolean;
@@ -1637,48 +1644,64 @@ function SettingsPanel({
   textColor: string;
 }) {
   return (
-    <View style={[styles.settingsPanel, { backgroundColor }]}>
-      {showSpeed ? (
-        <View style={styles.settingsSection}>
-          <Text style={[styles.settingsTitle, { color: textColor }]}>Speed</Text>
-          <View style={styles.settingsOptionRow}>
-            {SPEED_OPTIONS.map(rate => (
+    <View style={[styles.settingsPanel, { backgroundColor, maxHeight }]}>
+      <ScrollView
+        bounces={false}
+        contentContainerStyle={styles.settingsScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {showSpeed ? (
+          <View style={styles.settingsSection}>
+            <Text style={[styles.settingsTitle, { color: textColor }]}>Speed</Text>
+            <ScrollView
+              horizontal
+              bounces={false}
+              contentContainerStyle={styles.settingsOptionRow}
+              showsHorizontalScrollIndicator={false}
+            >
+              {SPEED_OPTIONS.map(rate => (
+                <SettingsChip
+                  accentColor={accentColor}
+                  active={Math.abs(currentRate - rate) < 0.001}
+                  key={rate}
+                  label={rate === 1 ? 'Normal' : `${rate}×`}
+                  onPress={() => onSelectRate(rate)}
+                  textColor={textColor}
+                />
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+        {showQuality ? (
+          <View style={styles.settingsSection}>
+            <Text style={[styles.settingsTitle, { color: textColor }]}>Quality</Text>
+            <ScrollView
+              horizontal
+              bounces={false}
+              contentContainerStyle={styles.settingsOptionRow}
+              showsHorizontalScrollIndicator={false}
+            >
               <SettingsChip
                 accentColor={accentColor}
-                active={Math.abs(currentRate - rate) < 0.001}
-                key={rate}
-                label={rate === 1 ? 'Normal' : `${rate}×`}
-                onPress={() => onSelectRate(rate)}
+                active={currentMaxResolution == null}
+                label="Auto"
+                onPress={() => onSelectResolution(undefined)}
                 textColor={textColor}
               />
-            ))}
+              {QUALITY_OPTIONS.map(resolution => (
+                <SettingsChip
+                  accentColor={accentColor}
+                  active={currentMaxResolution === resolution}
+                  key={resolution}
+                  label={resolution}
+                  onPress={() => onSelectResolution(resolution)}
+                  textColor={textColor}
+                />
+              ))}
+            </ScrollView>
           </View>
-        </View>
-      ) : null}
-      {showQuality ? (
-        <View style={styles.settingsSection}>
-          <Text style={[styles.settingsTitle, { color: textColor }]}>Quality</Text>
-          <View style={styles.settingsOptionRow}>
-            <SettingsChip
-              accentColor={accentColor}
-              active={currentMaxResolution == null}
-              label="Auto"
-              onPress={() => onSelectResolution(undefined)}
-              textColor={textColor}
-            />
-            {QUALITY_OPTIONS.map(resolution => (
-              <SettingsChip
-                accentColor={accentColor}
-                active={currentMaxResolution === resolution}
-                key={resolution}
-                label={resolution}
-                onPress={() => onSelectResolution(resolution)}
-                textColor={textColor}
-              />
-            ))}
-          </View>
-        </View>
-      ) : null}
+        ) : null}
+      </ScrollView>
     </View>
   );
 }
@@ -1916,14 +1939,37 @@ function CaptionsIcon({
 }
 
 function SettingsIcon({ color, size }: { color: string; size: number }) {
+  // Drawn "adjust" (sliders) icon to match the other white vector controls,
+  // rather than the multicolor ⚙ system emoji.
+  const trackWidth = Math.round(size * 0.66);
+  const stroke = Math.max(1.5, Math.round(size * 0.08));
+  const knob = Math.max(5, Math.round(size * 0.26));
+  const rowGap = Math.round(size * 0.2);
+
+  const renderRow = (key: string, knobLeft: number) => (
+    <View key={key} style={{ width: trackWidth, height: knob, justifyContent: 'center' }}>
+      <View style={{ height: stroke, borderRadius: stroke, backgroundColor: color }} />
+      <View
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: knobLeft,
+          width: knob,
+          height: knob,
+          borderRadius: knob / 2,
+          backgroundColor: color,
+        }}
+      />
+    </View>
+  );
+
   return (
-    <View pointerEvents="none" style={{ alignItems: 'center', justifyContent: 'center', height: size, width: size }}>
-      <Text
-        allowFontScaling={false}
-        style={{ color, fontSize: Math.round(size * 0.82), lineHeight: Math.round(size * 0.92) }}
-      >
-        ⚙
-      </Text>
+    <View
+      pointerEvents="none"
+      style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center', gap: rowGap }}
+    >
+      {renderRow('top', Math.round(trackWidth * 0.12))}
+      {renderRow('bottom', Math.round(trackWidth - knob - trackWidth * 0.12))}
     </View>
   );
 }
@@ -2370,12 +2416,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: frostBorderWidth,
     bottom: 34,
-    gap: 10,
     maxWidth: 260,
     minWidth: 200,
     padding: 10,
     position: 'absolute',
     right: 0,
+  },
+  settingsScrollContent: {
+    gap: 10,
   },
   settingsSection: {
     gap: 6,
@@ -2386,9 +2434,10 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   settingsOptionRow: {
+    alignItems: 'center',
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 6,
+    paddingRight: 2,
   },
   settingsChip: {
     backgroundColor: 'rgba(248, 251, 255, 0.08)',
