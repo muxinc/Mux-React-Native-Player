@@ -374,11 +374,7 @@ export function MuxVideoControls({
             : scrubStateRef.current.currentTime;
         scrubStateRef.current.currentTime = target;
         setPendingTarget(target);
-        console.log('[MuxControls] scrub release seekTo=', target);
-        player
-          .seekTo(target)
-          .then(() => console.log('[MuxControls] scrub seekTo OK'))
-          .catch(err => console.log('[MuxControls] scrub seekTo ERROR', err));
+        runPlayerCommand(player.seekTo(target));
       }
       setScrubbing(false);
       setInteractionTick(prev => prev + 1);
@@ -405,18 +401,6 @@ export function MuxVideoControls({
           scrubStateRef.current.currentTime = t;
           setScrubbing(true);
           setScrubTime(t);
-          console.log(
-            '[MuxControls] scrub grant x0=',
-            gestureState.x0,
-            'trackPageX=',
-            scrubStateRef.current.trackPageX,
-            'trackWidth=',
-            scrubStateRef.current.trackWidth,
-            'duration=',
-            scrubStateRef.current.duration,
-            't=',
-            t
-          );
         },
         onPanResponderMove: (_evt, gestureState) => {
           if (scrubStateRef.current.duration <= 0) {
@@ -443,21 +427,13 @@ export function MuxVideoControls({
   seekSecondsRef.current = controlsTheme.seekSeconds;
 
   const seekBack = React.useCallback(() => {
-    console.log('[MuxControls] seekBack pressed, seconds=', seekSecondsRef.current);
     keepAlive();
-    player
-      .seekBy(-seekSecondsRef.current)
-      .then(() => console.log('[MuxControls] seekBack OK'))
-      .catch(err => console.log('[MuxControls] seekBack ERROR', err));
+    runPlayerCommand(player.seekBy(-seekSecondsRef.current));
   }, [keepAlive, player]);
 
   const seekForward = React.useCallback(() => {
-    console.log('[MuxControls] seekForward pressed, seconds=', seekSecondsRef.current);
     keepAlive();
-    player
-      .seekBy(seekSecondsRef.current)
-      .then(() => console.log('[MuxControls] seekForward OK'))
-      .catch(err => console.log('[MuxControls] seekForward ERROR', err));
+    runPlayerCommand(player.seekBy(seekSecondsRef.current));
   }, [keepAlive, player]);
 
   const togglePlayback = React.useCallback(() => {
