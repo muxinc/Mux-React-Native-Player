@@ -39,6 +39,15 @@ function withMuxReactNativePlayer(config, props = {}) {
   config = withAndroidManifest(config, mod => {
     addAndroidPermission(mod.modResults.manifest, 'android.permission.INTERNET');
     addAndroidPermission(mod.modResults.manifest, 'android.permission.ACCESS_NETWORK_STATE');
+    if (props.enableNowPlaying === true) {
+      // Required for the lock-screen / Now Playing media notification.
+      addAndroidPermission(mod.modResults.manifest, 'android.permission.POST_NOTIFICATIONS');
+      addAndroidPermission(mod.modResults.manifest, 'android.permission.FOREGROUND_SERVICE');
+      addAndroidPermission(
+        mod.modResults.manifest,
+        'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK'
+      );
+    }
     return mod;
   });
 

@@ -68,6 +68,7 @@ type MuxVideoMetadata = {
 | `settingsMenu` | `boolean \| { speed?, quality? }` | `true` | Gear menu for playback speed & quality. `false` hides it; `{ speed: false }` / `{ quality: false }` hides one section |
 | `allowsFullscreen` | `boolean` | `true` | Fullscreen button + rotate-to-fullscreen ([setup required](orientation-and-fullscreen.md)) |
 | `allowsPictureInPicture` | `boolean` | — | PiP support (also enable the plugin option) |
+| `enableNowPlaying` | `boolean` | `false` | Publish lock-screen / Now Playing controls (title, artwork, transport). See [Now Playing](#now-playing--lock-screen-controls) |
 | `timeUpdateEventInterval` | `number` | — | Seconds between `onTimeUpdate` events |
 | `startupBufferDuration` | `number` | — | Target startup buffer in seconds |
 | `onStatusChange` | `(e: MuxPlayerStatus) => void` | — | Status, time, duration, volume, captions snapshot |
@@ -138,6 +139,30 @@ Available tracks arrive on `onSourceLoad` / `onStatusChange` as `captionTracks` 
 ```
 
 All fields are optional; omitted values fall back to the default dark theme.
+
+## Now Playing / lock-screen controls
+
+Set `enableNowPlaying` to surface system media controls (lock screen, Control
+Center, media notification) wired to the player.
+
+```tsx
+<MuxVideoView player={player} enableNowPlaying />
+```
+
+- **Title & artwork** come from the source: `metadata.videoTitle` and the Mux
+  thumbnail (`thumbnailToken` is used for signed playback).
+- **iOS** populates `MPNowPlayingInfoCenter` and handles play/pause/skip/scrub via
+  `MPRemoteCommandCenter`. It also activates the `AVAudioSession` playback category —
+  enable the audio background mode in the config plugin (`enableBackgroundAudio: true`
+  or `enablePictureInPicture: true`) for audio to continue when backgrounded.
+- **Android** attaches a `MediaSession` + media notification to the player. Add the
+  plugin option `enableNowPlaying: true` so the required permissions
+  (`POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`)
+  are merged into the manifest, and request notification permission at runtime on
+  Android 13+.
+
+> Status: the native Now Playing code ships in this version but its on-device behavior
+> has not yet been validated by the maintainers — verify with a development build.
 
 ## Poster & scrubber thumbnail previews
 

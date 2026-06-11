@@ -54,6 +54,10 @@ class MuxReactNativePlayerModule : Module() {
         // PiP requires host Activity integration and is intentionally left to a future pass.
       }
 
+      Prop("enableNowPlaying", false) { view: MuxVideoView, enabled: Boolean ->
+        view.setEnableNowPlaying(enabled)
+      }
+
       Prop("timeUpdateEventInterval", 0.5) { view: MuxVideoView, interval: Double ->
         view.setTimeUpdateEventInterval(interval)
       }

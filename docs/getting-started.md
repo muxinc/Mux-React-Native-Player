@@ -34,6 +34,7 @@ In `app.json` (or `app.config.js`):
 | --- | --- | --- |
 | `enablePictureInPicture` | `false` | Adds the `audio` background mode on iOS so video keeps playing in PiP |
 | `enableBackgroundAudio` | `false` | Adds the `audio` background mode on iOS for background playback |
+| `enableNowPlaying` | `false` | Adds Android notification permissions (`POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`) for lock-screen controls. Pair with the `enableNowPlaying` view prop |
 
 ### What the plugin configures for you
 

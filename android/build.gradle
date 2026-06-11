@@ -30,4 +30,9 @@ repositories {
 dependencies {
   implementation project(':expo-modules-core')
   implementation "com.mux.player:android:1.5.4"
+  // Lock-screen / Now Playing controls. Version tracks the media3 line that
+  // MuxPlayer 1.5.x is built on; reconcile with the resolved media3 version if
+  // a build surfaces a conflict.
+  implementation "androidx.media3:media3-session:${safeExtGet('media3Version', '1.5.1')}"
+  implementation "androidx.media3:media3-ui:${safeExtGet('media3Version', '1.5.1')}"
 }

@@ -23,6 +23,8 @@ struct MuxVideoSourceRecord: Record {
   @Field var playbackId: String = ""
   @Field var playbackToken: String?
   @Field var drmToken: String?
+  @Field var thumbnailToken: String?
+  @Field var storyboardToken: String?
   @Field var customDomain: String?
   @Field var minResolution: String?
   @Field var maxResolution: String?
@@ -35,6 +37,8 @@ struct MuxVideoSourceRecord: Record {
     values.append(playbackId)
     values.append(playbackToken ?? "")
     values.append(drmToken ?? "")
+    values.append(thumbnailToken ?? "")
+    values.append(storyboardToken ?? "")
     values.append(customDomain ?? "")
     values.append(minResolution ?? "")
     values.append(maxResolution ?? "")
@@ -55,6 +59,27 @@ struct MuxVideoSourceRecord: Record {
     values.append(customDataFingerprint)
 
     return values.joined(separator: "|")
+  }
+
+  /// Build the Mux thumbnail URL used as lock-screen / Now Playing artwork.
+  func artworkURL() -> URL? {
+    guard !playbackId.isEmpty else {
+      return nil
+    }
+    let host: String
+    if let domain = blankToNil(customDomain) {
+      host = "image.\(domain)"
+    } else {
+      host = "image.mux.com"
+    }
+    var components = URLComponents()
+    components.scheme = "https"
+    components.host = host
+    components.path = "/\(playbackId)/thumbnail.jpg"
+    if let token = blankToNil(thumbnailToken) {
+      components.queryItems = [URLQueryItem(name: "token", value: token)]
+    }
+    return components.url
   }
 
   func toPlaybackOptions() -> PlaybackOptions {

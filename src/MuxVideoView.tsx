@@ -52,6 +52,7 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
       settingsMenu = true,
       allowsFullscreen = true,
       allowsPictureInPicture = false,
+      enableNowPlaying = false,
       timeUpdateEventInterval = 0.5,
       startupBufferDuration,
       onStatusChange,
@@ -261,6 +262,7 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
       contentFit,
       allowsFullscreen,
       allowsPictureInPicture,
+      enableNowPlaying,
       timeUpdateEventInterval,
       onStatusChange: (event: { nativeEvent: any }) => {
         player._handleStatusChange(event.nativeEvent);

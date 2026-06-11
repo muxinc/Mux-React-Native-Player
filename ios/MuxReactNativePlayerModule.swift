@@ -46,6 +46,10 @@ public final class MuxReactNativePlayerModule: Module {
         view.setAllowsPictureInPicture(enabled)
       }
 
+      Prop("enableNowPlaying") { (view: MuxVideoView, enabled: Bool) in
+        view.setEnableNowPlaying(enabled)
+      }
+
       Prop("timeUpdateEventInterval") { (view: MuxVideoView, interval: Double) in
         view.setTimeUpdateEventInterval(interval)
       }

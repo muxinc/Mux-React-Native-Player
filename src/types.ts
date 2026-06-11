@@ -205,6 +205,7 @@ export type MuxVideoViewProps = ViewProps & {
   settingsMenu?: boolean | { speed?: boolean; quality?: boolean };
   allowsFullscreen?: boolean;
   allowsPictureInPicture?: boolean;
+  enableNowPlaying?: boolean;
   timeUpdateEventInterval?: number;
   startupBufferDuration?: number;
   onStatusChange?: (event: MuxStatusChangeEvent) => void;

@@ -1,6 +1,7 @@
 import AVFoundation
 import AVKit
 import ExpoModulesCore
+import MediaPlayer
 import MuxPlayerSwift
 import UIKit
 
@@ -27,6 +28,12 @@ final class MuxVideoView: ExpoView {
   private var timeUpdateTimer: Timer?
   private var statusObservation: NSKeyValueObservation?
   private var timeControlObservation: NSKeyValueObservation?
+  private var nowPlayingEnabled = false
+  private var nowPlayingTitle: String?
+  private var nowPlayingArtworkURL: URL?
+  private var nowPlayingArtwork: MPMediaItemArtwork?
+  private var loadedArtworkURL: URL?
+  private var remoteCommandsRegistered = false
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -41,6 +48,10 @@ final class MuxVideoView: ExpoView {
   deinit {
     releasePlayer()
     stopTimeUpdates()
+    if nowPlayingEnabled {
+      unregisterRemoteCommands()
+      clearNowPlayingInfo()
+    }
   }
 
   override func didMoveToWindow() {
@@ -66,10 +77,17 @@ final class MuxVideoView: ExpoView {
     releasePlayer()
     sourceFingerprint = source.fingerprint
     currentPlaybackId = source.playbackId
+    nowPlayingTitle = source.metadata?.videoTitle
+    nowPlayingArtworkURL = source.artworkURL()
+    nowPlayingArtwork = nil
+    loadedArtworkURL = nil
     didEmitSourceLoad = false
     didLoadLegibleGroup = false
     didReachEnd = false
     sendStatusChange(status: "loading")
+    if nowPlayingEnabled {
+      loadArtworkIfNeeded()
+    }
 
     playerViewController.prepare(
       playbackID: source.playbackId,
@@ -214,11 +232,18 @@ final class MuxVideoView: ExpoView {
     releasePlayer()
     sourceFingerprint = nil
     currentPlaybackId = nil
+    nowPlayingTitle = nil
+    nowPlayingArtworkURL = nil
+    nowPlayingArtwork = nil
+    loadedArtworkURL = nil
     didEmitSourceLoad = false
     didLoadLegibleGroup = false
     didReachEnd = false
     shouldPlay = false
     sendStatusChange(status: "idle")
+    if nowPlayingEnabled {
+      clearNowPlayingInfo()
+    }
   }
 
   private func observePlayer() {
@@ -387,6 +412,10 @@ final class MuxVideoView: ExpoView {
 
     onStatusChange(payload)
     onPlayingChange(["isPlaying": payload["status"] as? String == "playing"])
+
+    if nowPlayingEnabled {
+      updateNowPlayingInfo()
+    }
   }
 
   private func inferStatus() -> String {
@@ -498,5 +527,133 @@ final class MuxVideoView: ExpoView {
     }
 
     return "subtitles"
+  }
+
+  // MARK: - Now Playing / lock-screen controls
+
+  func setEnableNowPlaying(_ enabled: Bool) {
+    guard enabled != nowPlayingEnabled else {
+      return
+    }
+    nowPlayingEnabled = enabled
+
+    if enabled {
+      configureAudioSession()
+      registerRemoteCommands()
+      loadArtworkIfNeeded()
+      updateNowPlayingInfo()
+    } else {
+      unregisterRemoteCommands()
+      clearNowPlayingInfo()
+    }
+  }
+
+  private func configureAudioSession() {
+    let session = AVAudioSession.sharedInstance()
+    try? session.setCategory(.playback, mode: .moviePlayback)
+    try? session.setActive(true)
+  }
+
+  private func registerRemoteCommands() {
+    guard !remoteCommandsRegistered else {
+      return
+    }
+    remoteCommandsRegistered = true
+    let center = MPRemoteCommandCenter.shared()
+
+    center.playCommand.addTarget { [weak self] _ in
+      self?.play()
+      return .success
+    }
+    center.pauseCommand.addTarget { [weak self] _ in
+      self?.pause()
+      return .success
+    }
+    center.togglePlayPauseCommand.addTarget { [weak self] _ in
+      guard let self else { return .commandFailed }
+      if self.playerViewController.player?.rate ?? 0 > 0 {
+        self.pause()
+      } else {
+        self.play()
+      }
+      return .success
+    }
+    center.skipForwardCommand.preferredIntervals = [10]
+    center.skipForwardCommand.addTarget { [weak self] event in
+      guard let event = event as? MPSkipIntervalCommandEvent else { return .commandFailed }
+      self?.seekBy(event.interval)
+      return .success
+    }
+    center.skipBackwardCommand.preferredIntervals = [10]
+    center.skipBackwardCommand.addTarget { [weak self] event in
+      guard let event = event as? MPSkipIntervalCommandEvent else { return .commandFailed }
+      self?.seekBy(-event.interval)
+      return .success
+    }
+    center.changePlaybackPositionCommand.addTarget { [weak self] event in
+      guard let event = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
+      self?.seekTo(event.positionTime)
+      return .success
+    }
+  }
+
+  private func unregisterRemoteCommands() {
+    guard remoteCommandsRegistered else {
+      return
+    }
+    remoteCommandsRegistered = false
+    let center = MPRemoteCommandCenter.shared()
+    center.playCommand.removeTarget(nil)
+    center.pauseCommand.removeTarget(nil)
+    center.togglePlayPauseCommand.removeTarget(nil)
+    center.skipForwardCommand.removeTarget(nil)
+    center.skipBackwardCommand.removeTarget(nil)
+    center.changePlaybackPositionCommand.removeTarget(nil)
+  }
+
+  private func updateNowPlayingInfo() {
+    guard nowPlayingEnabled, currentPlaybackId != nil else {
+      return
+    }
+    var info: [String: Any] = [
+      MPMediaItemPropertyTitle: nowPlayingTitle ?? "",
+      MPMediaItemPropertyPlaybackDuration: durationSeconds(),
+      MPNowPlayingInfoPropertyElapsedPlaybackTime: currentTimeSeconds(),
+      MPNowPlayingInfoPropertyPlaybackRate: Double(playerViewController.player?.rate ?? 0),
+    ]
+    if let artwork = nowPlayingArtwork {
+      info[MPMediaItemPropertyArtwork] = artwork
+    }
+    MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+  }
+
+  private func clearNowPlayingInfo() {
+    MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+  }
+
+  private func loadArtworkIfNeeded() {
+    guard let url = nowPlayingArtworkURL, url != loadedArtworkURL else {
+      return
+    }
+    loadedArtworkURL = url
+    let requestedFingerprint = sourceFingerprint
+    URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+      guard
+        let data,
+        let image = UIImage(data: data)
+      else {
+        return
+      }
+      let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+      DispatchQueue.main.async {
+        guard let self, self.sourceFingerprint == requestedFingerprint else {
+          return
+        }
+        self.nowPlayingArtwork = artwork
+        if self.nowPlayingEnabled {
+          self.updateNowPlayingInfo()
+        }
+      }
+    }.resume()
   }
 }

@@ -14,7 +14,9 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.session.MediaSession
 import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerNotificationManager
 import androidx.media3.ui.PlayerView
 import com.mux.player.MuxPlayer
 import expo.modules.kotlin.AppContext
@@ -53,6 +55,9 @@ class MuxVideoView(
   private var shouldPlay = false
   private var timeUpdateEventIntervalMs = 500L
   private var startupBufferDurationMs = 0L
+  private var nowPlayingEnabled = false
+  private var mediaSession: MediaSession? = null
+  private var notificationManager: PlayerNotificationManager? = null
 
   private data class TextTrackSelection(
     val id: String,
@@ -167,6 +172,22 @@ class MuxVideoView(
     player = nextPlayer
     playerView.player = nextPlayer
     applyPlayerConfiguration()
+
+    if (nowPlayingEnabled) {
+      attachNowPlaying()
+    }
+  }
+
+  fun setEnableNowPlaying(enabled: Boolean) {
+    if (enabled == nowPlayingEnabled) {
+      return
+    }
+    nowPlayingEnabled = enabled
+    if (enabled) {
+      attachNowPlaying()
+    } else {
+      detachNowPlaying()
+    }
   }
 
   fun setNativeControls(enabled: Boolean) {
@@ -296,10 +317,41 @@ class MuxVideoView(
   }
 
   private fun releasePlayer() {
+    detachNowPlaying()
     playerView.player = null
     player?.removeListener(listener)
     player?.release()
     player = null
+  }
+
+  private fun attachNowPlaying() {
+    val currentPlayer = player ?: return
+    val session = mediaSession ?: MediaSession.Builder(context, currentPlayer)
+      .setId("mux-now-playing-${hashCode()}")
+      .build()
+      .also { mediaSession = it }
+
+    if (notificationManager == null) {
+      val manager = PlayerNotificationManager.Builder(
+        context,
+        NOW_PLAYING_NOTIFICATION_ID,
+        NOW_PLAYING_CHANNEL_ID,
+      )
+        .setChannelNameResourceId(R.string.mux_now_playing_channel_name)
+        .build()
+      manager.setMediaSessionToken(session.sessionCompatToken)
+      manager.setPlayer(currentPlayer)
+      notificationManager = manager
+    } else {
+      notificationManager?.setPlayer(currentPlayer)
+    }
+  }
+
+  private fun detachNowPlaying() {
+    notificationManager?.setPlayer(null)
+    notificationManager = null
+    mediaSession?.release()
+    mediaSession = null
   }
 
   private fun startTimeUpdates() {
@@ -448,5 +500,10 @@ class MuxVideoView(
       roleFlags and C.ROLE_FLAG_CAPTION != 0 -> "captions"
       else -> "subtitles"
     }
+  }
+
+  private companion object {
+    const val NOW_PLAYING_NOTIFICATION_ID = 4711
+    const val NOW_PLAYING_CHANNEL_ID = "mux_now_playing"
   }
 }

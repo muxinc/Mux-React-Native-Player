@@ -57,6 +57,12 @@ class MuxVideoSourceRecord : Record {
   var drmToken: String? = null
 
   @Field
+  var thumbnailToken: String? = null
+
+  @Field
+  var storyboardToken: String? = null
+
+  @Field
   var customDomain: String? = null
 
   @Field
@@ -79,6 +85,8 @@ class MuxVideoSourceRecord : Record {
       playbackId,
       playbackToken.orEmpty(),
       drmToken.orEmpty(),
+      thumbnailToken.orEmpty(),
+      storyboardToken.orEmpty(),
       customDomain.orEmpty(),
       minResolution.orEmpty(),
       maxResolution.orEmpty(),
@@ -108,15 +116,31 @@ class MuxVideoSourceRecord : Record {
       drmToken = drmToken,
     )
 
+    val metadataBuilder = MediaMetadata.Builder()
+    var hasMetadata = false
     metadata?.videoTitle?.let { title ->
-      builder.setMediaMetadata(
-        MediaMetadata.Builder()
-          .setTitle(title)
-          .build()
-      )
+      metadataBuilder.setTitle(title)
+      hasMetadata = true
+    }
+    artworkUri()?.let { uri ->
+      metadataBuilder.setArtworkUri(android.net.Uri.parse(uri))
+      hasMetadata = true
+    }
+    if (hasMetadata) {
+      builder.setMediaMetadata(metadataBuilder.build())
     }
 
     return builder.build()
+  }
+
+  /** Mux thumbnail URL used as lock-screen / media-session artwork. */
+  fun artworkUri(): String? {
+    if (playbackId.isBlank()) {
+      return null
+    }
+    val host = customDomain?.takeIf { it.isNotBlank() }?.let { "image.$it" } ?: "image.mux.com"
+    val tokenQuery = thumbnailToken?.takeIf { it.isNotBlank() }?.let { "?token=$it" }.orEmpty()
+    return "https://$host/$playbackId/thumbnail.jpg$tokenQuery"
   }
 
   fun toCustomerData(): CustomerData {

@@ -66,7 +66,13 @@ there's no UI surface for them.
 
 ---
 
-### 3. Background audio + lock-screen / Now Playing controls `[ ]`
+### 3. Background audio + lock-screen / Now Playing controls `[x]`
+
+> ⚠️ Native code shipped but NOT runtime-verified (no device/simulator build in the
+> loop environment). iOS uses SDK-only APIs (lower risk). Android adds
+> `androidx.media3:media3-session`/`media3-ui` — the pinned version (1.5.1) may need
+> reconciling with MuxPlayer's transitive media3 version, and `MediaSession` +
+> `PlayerNotificationManager` API usage should be confirmed with a real Android build.
 
 **Why:** The config plugin already adds `UIBackgroundModes: audio`; the missing half is
 publishing Now Playing metadata so the OS shows lock-screen transport controls.
@@ -162,3 +168,8 @@ release / autoplay presets is where naive RN video implementations fall apart.
   custom controls with speed chips (0.5–2×) and quality cap (Auto + 720p–2160p); new
   `player.setMaxResolution()` + `maxResolution` getter that reloads and resumes;
   `settingsMenu` prop (toggle whole menu or per-section); 2 new tests.
+- 2026-06-11 — Item 3 (Now Playing / lock-screen controls) implemented behind the
+  `enableNowPlaying` prop. iOS: MPNowPlayingInfoCenter + MPRemoteCommandCenter +
+  AVAudioSession + Mux-thumbnail artwork. Android: MediaSession + PlayerNotificationManager
+  + MediaItem metadata/artwork, plugin permissions. JS typecheck/tests/plugin pass;
+  NATIVE CODE UNVERIFIED (no device build) — see warning under item 3.
