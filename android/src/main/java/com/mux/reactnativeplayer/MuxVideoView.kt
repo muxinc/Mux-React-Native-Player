@@ -390,7 +390,7 @@ class MuxVideoView(
       )
         .setChannelNameResourceId(R.string.mux_now_playing_channel_name)
         .build()
-      manager.setMediaSessionToken(session.sessionCompatToken)
+      manager.setMediaSessionToken(session.platformToken)
       manager.setPlayer(currentPlayer)
       notificationManager = manager
     } else {

@@ -224,3 +224,11 @@ release / autoplay presets is where naive RN video implementations fall apart.
   iOS chapter markers (the optional sub-item) deferred as a documented follow-up. All JS;
   typecheck + 31 tests pass.
 - 2026-06-11 — All PRD items 1–8 complete (4b Chromecast intentionally deferred). Loop done.
+- 2026-06-11 — Device-build verification in MuxPlayerPackTest (0.1.4): iOS
+  `pod install` + `xcodebuild` SUCCEEDED (AirPlay module, Now Playing, caption styling,
+  live all compile + link); app runs on simulator. Android `compileDebugKotlin` surfaced
+  one real error — `MediaSession.sessionCompatToken` doesn't exist in the resolved media3
+  (1.10.0, aligned up from MuxPlayer's transitive version; the 1.5.1 pin is a safe floor).
+  Fixed to `session.platformToken`; Android module now compiles SUCCESSFULLY. The media3
+  caption/notification/session APIs are now build-verified; on-device runtime behavior
+  (lock-screen, live DVR) still benefits from a manual pass.
