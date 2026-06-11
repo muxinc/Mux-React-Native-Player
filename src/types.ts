@@ -142,12 +142,24 @@ export type MuxVideoKeyMoment = {
   score?: number;
 };
 
+export type MuxVideoTranscriptCue = {
+  startTime: number;
+  endTime?: number;
+  text: string;
+  speaker?: string;
+};
+
+export type MuxVideoTranscript = {
+  cues: MuxVideoTranscriptCue[];
+};
+
 export type MuxVideoRobotsConfig = {
   enabled?: boolean;
   assetId?: string;
   summary?: MuxVideoSummary;
   chapters?: MuxVideoChapter[];
   keyMoments?: MuxVideoKeyMoment[];
+  transcript?: MuxVideoTranscript;
   onSummarize?: (context: MuxVideoRobotsContext) => Promise<MuxVideoSummary>;
   onGenerateChapters?: (
     context: MuxVideoRobotsContext
@@ -155,6 +167,9 @@ export type MuxVideoRobotsConfig = {
   onFindKeyMoments?: (
     context: MuxVideoRobotsContext
   ) => Promise<MuxVideoKeyMoment[]>;
+  onTranscribe?: (
+    context: MuxVideoRobotsContext
+  ) => Promise<MuxVideoTranscript>;
 };
 
 export type MuxSourceLoadEvent = {

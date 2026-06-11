@@ -24,6 +24,7 @@ import type {
   MuxVideoKeyMoment,
   MuxVideoRobotsConfig,
   MuxVideoSummary,
+  MuxVideoTranscript,
   NormalizedMuxVideoSource,
 } from './types';
 import { MuxVideoPlayer } from './MuxVideoPlayer';
@@ -36,7 +37,7 @@ import {
 } from './storyboard';
 
 type RequiredControlsTheme = Required<MuxVideoControlsTheme>;
-type RobotsPanel = 'summary' | 'chapters' | 'moments';
+type RobotsPanel = 'summary' | 'chapters' | 'moments' | 'transcript';
 
 type MuxVideoControlsProps = {
   player: MuxVideoPlayer;
@@ -54,9 +55,11 @@ type MuxVideoControlsProps = {
   generatedSummary?: MuxVideoSummary;
   generatedChapters?: MuxVideoChapter[];
   generatedKeyMoments?: MuxVideoKeyMoment[];
+  generatedTranscript?: MuxVideoTranscript;
   onGeneratedSummaryChange?: (summary: MuxVideoSummary | undefined) => void;
   onGeneratedChaptersChange?: (chapters: MuxVideoChapter[] | undefined) => void;
   onGeneratedKeyMomentsChange?: (keyMoments: MuxVideoKeyMoment[] | undefined) => void;
+  onGeneratedTranscriptChange?: (transcript: MuxVideoTranscript | undefined) => void;
 };
 
 const emptyChapters: MuxVideoChapter[] = [];
@@ -72,6 +75,7 @@ const robotImages = {
   summary: require('../assets/MuxRobot_03.gif'),
   chapters: require('../assets/MuxRobot_02.gif'),
   moments: require('../assets/MuxRobot_05.gif'),
+  transcript: require('../assets/MuxRobot_04.gif'),
 } as const;
 
 const defaultTheme: RequiredControlsTheme = {
@@ -109,9 +113,11 @@ export function MuxVideoControls({
   generatedSummary,
   generatedChapters,
   generatedKeyMoments,
+  generatedTranscript,
   onGeneratedSummaryChange,
   onGeneratedChaptersChange,
   onGeneratedKeyMomentsChange,
+  onGeneratedTranscriptChange,
 }: MuxVideoControlsProps) {
   const controlsTheme = React.useMemo<RequiredControlsTheme>(
     () => ({ ...defaultTheme, ...theme }),
@@ -177,12 +183,16 @@ export function MuxVideoControls({
   const summary = generatedSummary ?? robots?.summary;
   const chapters = generatedChapters ?? robots?.chapters ?? emptyChapters;
   const keyMoments = generatedKeyMoments ?? robots?.keyMoments ?? emptyKeyMoments;
+  const transcript = generatedTranscript ?? robots?.transcript;
   const captionTracks = status.captionTracks ?? emptyCaptionTracks;
   const selectedCaptionTrackId = status.selectedCaptionTrackId ?? null;
   const canSummarize = robotsEnabled && (!!summary || (!!robotsAssetId && !!robots?.onSummarize));
   const canGenerateChapters = robotsEnabled && (chapters.length > 0 || (!!robotsAssetId && !!robots?.onGenerateChapters));
   const canFindKeyMoments = robotsEnabled && (keyMoments.length > 0 || (!!robotsAssetId && !!robots?.onFindKeyMoments));
-  const hasRobotsActions = canSummarize || canGenerateChapters || canFindKeyMoments;
+  const canTranscribe =
+    robotsEnabled &&
+    ((transcript?.cues.length ?? 0) > 0 || (!!robotsAssetId && !!robots?.onTranscribe));
+  const hasRobotsActions = canSummarize || canGenerateChapters || canFindKeyMoments || canTranscribe;
   const isRobotsFocused = activeRobotsPanel !== null;
   const hasCaptionTracks = captionTracks.length > 0;
   const showSpeedControl =
@@ -698,6 +708,48 @@ export function MuxVideoControls({
       });
   }, [activeRobotsPanel, dismissRobotsPanel, displayTime, duration, keepAlive, keyMoments.length, robots, robotsAssetId, robotsLoading, toggleRobotsPanel]);
 
+  const loadTranscript = React.useCallback(() => {
+    if (activeRobotsPanel === 'transcript' || robotsLoading === 'transcript') {
+      dismissRobotsPanel();
+      return;
+    }
+    if ((transcript?.cues.length ?? 0) > 0 || !robotsAssetId || !robots?.onTranscribe) {
+      toggleRobotsPanel('transcript');
+      return;
+    }
+    keepAlive();
+    const requestId = robotsRequestRef.current + 1;
+    robotsRequestRef.current = requestId;
+    setActiveRobotsPanel('transcript');
+    setRobotsLoading('transcript');
+    setRobotsError(null);
+    robots
+      .onTranscribe({
+        assetId: robotsAssetId,
+        currentTime: displayTime,
+        duration,
+      })
+      .then(result => {
+        if (robotsRequestRef.current !== requestId) {
+          return;
+        }
+        onGeneratedTranscriptChange?.(result);
+        setActiveRobotsPanel('transcript');
+      })
+      .catch(error => {
+        if (robotsRequestRef.current !== requestId) {
+          return;
+        }
+        setRobotsError(getRobotsErrorMessage(error, 'Transcript is not available yet.'));
+        setActiveRobotsPanel('transcript');
+      })
+      .finally(() => {
+        if (robotsRequestRef.current === requestId) {
+          setRobotsLoading(null);
+        }
+      });
+  }, [activeRobotsPanel, dismissRobotsPanel, displayTime, duration, keepAlive, robots, robotsAssetId, robotsLoading, toggleRobotsPanel, transcript?.cues.length, onGeneratedTranscriptChange]);
+
   const seekToRobotsTime = React.useCallback(
     (target: number) => {
       keepAlive();
@@ -728,7 +780,9 @@ export function MuxVideoControls({
     ? Math.max(140, Math.min(280, Math.floor(containerHeight * 0.65)))
     : 260;
   const panelMaxHeight =
-    activeRobotsPanel === 'summary' ? summaryPanelMaxHeight : defaultPanelMaxHeight;
+    activeRobotsPanel === 'summary' || activeRobotsPanel === 'transcript'
+      ? summaryPanelMaxHeight
+      : defaultPanelMaxHeight;
 
   return (
     <View
@@ -817,6 +871,16 @@ export function MuxVideoControls({
                       textColor={controlsTheme.buttonTextColor}
                     />
                   ) : null}
+                  {canTranscribe ? (
+                    <RobotsActionButton
+                      active={activeRobotsPanel === 'transcript'}
+                      backgroundColor={controlsTheme.buttonBackgroundColor}
+                      label="Transcript"
+                      onPress={loadTranscript}
+                      robotSource={robotImages.transcript}
+                      textColor={controlsTheme.buttonTextColor}
+                    />
+                  ) : null}
                 </ScrollView>
                 {activeRobotsPanel ? (
                   <RobotsPanelView
@@ -830,6 +894,7 @@ export function MuxVideoControls({
                     onSeek={seekToRobotsTime}
                     summary={summary}
                     textColor={controlsTheme.textColor}
+                    transcript={transcript}
                   />
                 ) : null}
               </View>
@@ -1374,6 +1439,7 @@ function RobotsPanelView({
   onSeek,
   summary,
   textColor,
+  transcript,
 }: {
   activePanel: RobotsPanel;
   backgroundColor: string;
@@ -1385,13 +1451,16 @@ function RobotsPanelView({
   onSeek: (time: number) => void;
   summary?: MuxVideoSummary;
   textColor: string;
+  transcript?: MuxVideoTranscript;
 }) {
   const title =
     activePanel === 'summary'
       ? 'Summary'
       : activePanel === 'chapters'
         ? 'Chapters'
-        : 'Key Moments';
+        : activePanel === 'transcript'
+          ? 'Transcript'
+          : 'Key Moments';
 
   return (
     <View style={[styles.robotsPanel, { backgroundColor, maxHeight }]}>
@@ -1406,10 +1475,48 @@ function RobotsPanelView({
         <SummaryPanel summary={summary} textColor={textColor} />
       ) : activePanel === 'chapters' ? (
         <ChapterPanel chapters={chapters} onSeek={onSeek} textColor={textColor} />
+      ) : activePanel === 'transcript' ? (
+        <TranscriptPanel transcript={transcript} onSeek={onSeek} textColor={textColor} />
       ) : (
         <KeyMomentsPanel keyMoments={keyMoments} onSeek={onSeek} textColor={textColor} />
       )}
     </View>
+  );
+}
+
+function TranscriptPanel({
+  onSeek,
+  textColor,
+  transcript,
+}: {
+  onSeek: (time: number) => void;
+  textColor: string;
+  transcript?: MuxVideoTranscript;
+}) {
+  const cues = transcript?.cues ?? [];
+  if (cues.length === 0) {
+    return <Text style={[styles.robotsPanelText, { color: textColor }]}>No transcript yet.</Text>;
+  }
+  return (
+    <ScrollView showsVerticalScrollIndicator={false} style={styles.transcriptScroll}>
+      {cues.map((cue, index) => (
+        <Pressable
+          accessibilityLabel={`Seek to ${formatTime(cue.startTime)}`}
+          accessibilityRole="button"
+          key={`${cue.startTime}-${index}`}
+          onPress={() => onSeek(cue.startTime)}
+          style={({ pressed }) => [styles.transcriptCue, pressed && styles.pressed]}
+        >
+          <Text style={[styles.transcriptTime, { color: textColor }]}>
+            {formatTime(cue.startTime)}
+          </Text>
+          <Text style={[styles.transcriptText, { color: textColor }]}>
+            {cue.speaker ? `${cue.speaker}: ` : ''}
+            {cue.text}
+          </Text>
+        </Pressable>
+      ))}
+    </ScrollView>
   );
 }
 
@@ -2191,6 +2298,26 @@ const styles = StyleSheet.create({
   },
   robotsScroll: {
     maxHeight: 92,
+  },
+  transcriptScroll: {
+    flexGrow: 0,
+  },
+  transcriptCue: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  transcriptTime: {
+    fontSize: 11,
+    fontWeight: '800',
+    opacity: 0.7,
+    width: 44,
+  },
+  transcriptText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 16,
   },
   robotsListItem: {
     backgroundColor: 'rgba(248, 251, 255, 0.08)',

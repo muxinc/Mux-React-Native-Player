@@ -1,6 +1,6 @@
 # Mux Robots
 
-[Mux Robots](https://www.mux.com) can generate an AI summary, chapters, and key moments for a video. With `controls="custom"`, the player renders Robots buttons that trigger these on demand — chapters become timeline markers, key moments become highlighted ranges, and selecting either seeks to its start.
+[Mux Robots](https://www.mux.com) can generate an AI summary, chapters, key moments, and a transcript for a video. With `controls="custom"`, the player renders Robots buttons that trigger these on demand — chapters become timeline markers, key moments become highlighted ranges, and tapping a chapter / key moment / transcript line seeks to its start.
 
 Robots is **opt-in**: without the `robots` prop you get a standard video player and nothing on this page applies.
 
@@ -20,6 +20,7 @@ app (this package) → robots callbacks → your backend → Mux API (with your 
     onSummarize: ({ assetId }) => postJson('/api/mux/robots/summarize', { assetId }),
     onGenerateChapters: ({ assetId }) => postJson('/api/mux/robots/chapters', { assetId }),
     onFindKeyMoments: ({ assetId }) => postJson('/api/mux/robots/key-moments', { assetId }),
+    onTranscribe: ({ assetId }) => postJson('/api/mux/robots/transcript', { assetId }),
   }}
 />
 ```
@@ -37,6 +38,13 @@ type MuxVideoKeyMoment = {
   title: string;
   description?: string;
   score?: number;
+};
+type MuxVideoTranscript = { cues: MuxVideoTranscriptCue[] };
+type MuxVideoTranscriptCue = {
+  startTime: number;
+  endTime?: number;
+  text: string;
+  speaker?: string;
 };
 ```
 
@@ -80,9 +88,11 @@ type MuxVideoRobotsConfig = {
   summary?: MuxVideoSummary;
   chapters?: MuxVideoChapter[];
   keyMoments?: MuxVideoKeyMoment[];
+  transcript?: MuxVideoTranscript;
   onSummarize?: (ctx: MuxVideoRobotsContext) => Promise<MuxVideoSummary>;
   onGenerateChapters?: (ctx: MuxVideoRobotsContext) => Promise<MuxVideoChapter[]>;
   onFindKeyMoments?: (ctx: MuxVideoRobotsContext) => Promise<MuxVideoKeyMoment[]>;
+  onTranscribe?: (ctx: MuxVideoRobotsContext) => Promise<MuxVideoTranscript>;
 };
 
 type MuxVideoRobotsContext = { assetId: string; duration: number; currentTime: number };

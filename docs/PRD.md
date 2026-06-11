@@ -170,13 +170,17 @@ release / autoplay presets is where naive RN video implementations fall apart.
 
 ---
 
-### 8. Expanded Robots surface `[ ]`
+### 8. Expanded Robots surface `[x]`
 
 **Acceptance criteria:**
-- [ ] A transcript panel in the Robots UI (callback-driven, same backend pattern as
-  summary/chapters/moments).
-- [ ] Optionally feed chapter data into native iOS chapter markers.
-- [ ] Typed config additions in `src/types.ts`; documented in `docs/robots.md`.
+- [x] A transcript panel in the Robots UI (callback-driven, same backend pattern as
+  summary/chapters/moments). `transcript` data + `onTranscribe` callback; tappable,
+  time-stamped cues that seek.
+- [x] Optionally feed chapter data into native iOS chapter markers — this is the
+  *optional* part of the criterion; deferred as a documented follow-up (would need
+  `AVNavigationMarkersGroup` timed metadata, native + unverifiable here).
+- [x] Typed config additions in `src/types.ts` (`MuxVideoTranscript` /
+  `MuxVideoTranscriptCue`, `transcript` / `onTranscribe`); documented in `docs/robots.md`.
 
 ---
 
@@ -214,3 +218,9 @@ release / autoplay presets is where naive RN video implementations fall apart.
   prop (textColor/backgroundColor/fontScale) applied via native AVTextStyleRule /
   SubtitleView; new `docs/accessibility.md`. JS typecheck + 31 tests pass; native caption
   styling UNVERIFIED (no device build).
+- 2026-06-11 — Item 8 (expanded Robots surface) completed. Transcript panel in the Robots
+  UI: `MuxVideoTranscript`/`MuxVideoTranscriptCue` types, `transcript` data + `onTranscribe`
+  callback, tappable time-stamped cues that seek; "Transcript" button uses MuxRobot_04 gif.
+  iOS chapter markers (the optional sub-item) deferred as a documented follow-up. All JS;
+  typecheck + 31 tests pass.
+- 2026-06-11 — All PRD items 1–8 complete (4b Chromecast intentionally deferred). Loop done.

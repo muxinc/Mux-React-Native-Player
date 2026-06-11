@@ -18,6 +18,7 @@ import type {
   MuxVideoKeyMoment,
   MuxVideoSource,
   MuxVideoSummary,
+  MuxVideoTranscript,
   MuxVideoViewProps,
 } from './types';
 
@@ -77,6 +78,7 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
     const [generatedSummary, setGeneratedSummary] = React.useState<MuxVideoSummary>();
     const [generatedChapters, setGeneratedChapters] = React.useState<MuxVideoChapter[]>();
     const [generatedKeyMoments, setGeneratedKeyMoments] = React.useState<MuxVideoKeyMoment[]>();
+    const [generatedTranscript, setGeneratedTranscript] = React.useState<MuxVideoTranscript>();
     const snapshot = React.useSyncExternalStore(
       player._subscribe,
       player._getSnapshot,
@@ -253,6 +255,7 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
       setGeneratedSummary(undefined);
       setGeneratedChapters(undefined);
       setGeneratedKeyMoments(undefined);
+      setGeneratedTranscript(undefined);
     }, [robotsAssetId]);
 
     const sharedNativeProps = {
@@ -347,9 +350,11 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
               generatedSummary={generatedSummary}
               generatedChapters={generatedChapters}
               generatedKeyMoments={generatedKeyMoments}
+              generatedTranscript={generatedTranscript}
               onGeneratedSummaryChange={setGeneratedSummary}
               onGeneratedChaptersChange={setGeneratedChapters}
               onGeneratedKeyMomentsChange={setGeneratedKeyMoments}
+              onGeneratedTranscriptChange={setGeneratedTranscript}
             />
           </View>
         ) : null}

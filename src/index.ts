@@ -43,6 +43,8 @@ export type {
   MuxVideoSource,
   MuxVideoSourceObject,
   MuxVideoSummary,
+  MuxVideoTranscript,
+  MuxVideoTranscriptCue,
   MuxVideoViewProps,
 } from './types';
 export type { MuxVideoViewRef } from './MuxVideoView';
