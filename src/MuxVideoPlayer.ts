@@ -1,4 +1,5 @@
 import type {
+  MuxMaxResolution,
   MuxNativeViewRef,
   MuxPlayerStatus,
   MuxPlaybackStatus,
@@ -145,6 +146,31 @@ export class MuxVideoPlayer {
     this.updateSnapshot();
     this.emitChange();
     return this.runNativeCommand('setCaptionTrack', trackId);
+  }
+
+  get maxResolution(): MuxMaxResolution | undefined {
+    return this.source?.maxResolution;
+  }
+
+  /**
+   * Cap (or uncap, with `undefined`) the streaming resolution of the active
+   * source. Reloads the source and resumes from the current position.
+   */
+  setMaxResolution(maxResolution?: MuxMaxResolution): void {
+    if (!this.source || this.source.maxResolution === maxResolution) {
+      return;
+    }
+    const resumeTime = this.statusState.currentTime;
+    const next = { ...this.source, maxResolution };
+    try {
+      this.replace(next);
+    } catch {
+      // A previously-set minResolution may exceed the new cap; drop it.
+      this.replace({ ...next, minResolution: undefined });
+    }
+    if (resumeTime > 0.5) {
+      this.resumeAt = resumeTime;
+    }
   }
 
   replace(source: MuxVideoSource): void {

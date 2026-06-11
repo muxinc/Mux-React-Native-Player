@@ -49,6 +49,7 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
       poster,
       posterTime,
       thumbnailPreviews = true,
+      settingsMenu = true,
       allowsFullscreen = true,
       allowsPictureInPicture = false,
       timeUpdateEventInterval = 0.5,
@@ -329,6 +330,7 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
               shouldPlay={snapshot.shouldPlay}
               source={snapshot.source}
               thumbnailPreviews={thumbnailPreviews}
+              settingsMenu={settingsMenu}
               theme={controlsTheme}
               robots={controlsRobots}
               allowsFullscreen={allowsFullscreen}

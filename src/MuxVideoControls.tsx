@@ -15,6 +15,7 @@ import type { ImageSourcePropType } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import type {
+  MuxMaxResolution,
   MuxPlayerStatus,
   MuxVideoCaptionTrack,
   MuxVideoChapter,
@@ -41,6 +42,7 @@ type MuxVideoControlsProps = {
   shouldPlay: boolean;
   source?: NormalizedMuxVideoSource;
   thumbnailPreviews?: boolean;
+  settingsMenu?: boolean | { speed?: boolean; quality?: boolean };
   theme?: MuxVideoControlsTheme;
   robots?: MuxVideoRobotsConfig;
   allowsFullscreen?: boolean;
@@ -57,6 +59,8 @@ type MuxVideoControlsProps = {
 const emptyChapters: MuxVideoChapter[] = [];
 const emptyKeyMoments: MuxVideoKeyMoment[] = [];
 const emptyCaptionTracks: MuxVideoCaptionTrack[] = [];
+const SPEED_OPTIONS = [0.5, 1, 1.25, 1.5, 2] as const;
+const QUALITY_OPTIONS: MuxMaxResolution[] = ['720p', '1080p', '1440p', '2160p'];
 const robotImages = {
   summary: require('../assets/MuxRobot_03.gif'),
   chapters: require('../assets/MuxRobot_02.gif'),
@@ -88,6 +92,7 @@ export function MuxVideoControls({
   shouldPlay,
   source,
   thumbnailPreviews = true,
+  settingsMenu = true,
   theme,
   robots,
   allowsFullscreen = false,
@@ -118,6 +123,7 @@ export function MuxVideoControls({
   const [robotsLoading, setRobotsLoading] = React.useState<RobotsPanel | null>(null);
   const [robotsError, setRobotsError] = React.useState<string | null>(null);
   const [captionsOpen, setCaptionsOpen] = React.useState(false);
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
   const robotsRequestRef = React.useRef(0);
   const controlsRootRef = React.useRef<View>(null);
   const opacity = React.useRef(new Animated.Value(1)).current;
@@ -159,6 +165,11 @@ export function MuxVideoControls({
   const hasRobotsActions = canSummarize || canGenerateChapters || canFindKeyMoments;
   const isRobotsFocused = activeRobotsPanel !== null;
   const hasCaptionTracks = captionTracks.length > 0;
+  const showSpeedControl =
+    settingsMenu === true || (typeof settingsMenu === 'object' && settingsMenu.speed !== false);
+  const showQualityControl =
+    settingsMenu === true || (typeof settingsMenu === 'object' && settingsMenu.quality !== false);
+  const showSettingsButton = settingsMenu !== false && (showSpeedControl || showQualityControl);
 
   React.useEffect(() => {
     robotsRequestRef.current += 1;
@@ -304,9 +315,19 @@ export function MuxVideoControls({
     keepAlive();
   }, [keepAlive]);
 
+  const dismissSettingsPanel = React.useCallback(() => {
+    setSettingsOpen(false);
+    keepAlive();
+  }, [keepAlive]);
+
   const handleBackgroundTap = React.useCallback(() => {
     if (captionsOpen) {
       dismissCaptionsPanel();
+      return;
+    }
+
+    if (settingsOpen) {
+      dismissSettingsPanel();
       return;
     }
 
@@ -321,15 +342,15 @@ export function MuxVideoControls({
     } else {
       fadeOut();
     }
-  }, [activeRobotsPanel, captionsOpen, dismissCaptionsPanel, dismissRobotsPanel, fadeIn, fadeOut, hidden, robotsLoading]);
+  }, [activeRobotsPanel, captionsOpen, dismissCaptionsPanel, dismissRobotsPanel, dismissSettingsPanel, fadeIn, fadeOut, hidden, robotsLoading, settingsOpen]);
 
   React.useEffect(() => {
-    if (hidden || scrubbing || activeRobotsPanel || robotsLoading || captionsOpen) {
+    if (hidden || scrubbing || activeRobotsPanel || robotsLoading || captionsOpen || settingsOpen) {
       return;
     }
     const timer = setTimeout(fadeOut, 3000);
     return () => clearTimeout(timer);
-  }, [hidden, scrubbing, activeRobotsPanel, robotsLoading, captionsOpen, interactionTick, fadeOut]);
+  }, [hidden, scrubbing, activeRobotsPanel, robotsLoading, captionsOpen, settingsOpen, interactionTick, fadeOut]);
 
   const trackRef = React.useRef<View>(null);
   const scrubStateRef = React.useRef({
@@ -460,13 +481,38 @@ export function MuxVideoControls({
   const handleToggleFullscreen = React.useCallback(() => {
     keepAlive();
     setCaptionsOpen(false);
+    setSettingsOpen(false);
     onToggleFullscreen?.();
   }, [keepAlive, onToggleFullscreen]);
 
   const toggleCaptionsPanel = React.useCallback(() => {
     keepAlive();
+    setSettingsOpen(false);
     setCaptionsOpen(open => !open);
   }, [keepAlive]);
+
+  const toggleSettingsPanel = React.useCallback(() => {
+    keepAlive();
+    setCaptionsOpen(false);
+    setSettingsOpen(open => !open);
+  }, [keepAlive]);
+
+  const selectPlaybackRate = React.useCallback(
+    (rate: number) => {
+      keepAlive();
+      runPlayerCommand(player.setPlaybackRate(rate));
+    },
+    [keepAlive, player]
+  );
+
+  const selectMaxResolution = React.useCallback(
+    (resolution?: MuxMaxResolution) => {
+      keepAlive();
+      setSettingsOpen(false);
+      player.setMaxResolution(resolution);
+    },
+    [keepAlive, player]
+  );
 
   const toggleRobotsPanel = React.useCallback(
     (panel: RobotsPanel) => {
@@ -961,6 +1007,31 @@ export function MuxVideoControls({
                     </IconButton>
                   </View>
                 ) : null}
+                {showSettingsButton ? (
+                  <View style={styles.captionControlWrap}>
+                    {settingsOpen ? (
+                      <SettingsPanel
+                        accentColor={controlsTheme.accentColor}
+                        backgroundColor={controlsTheme.buttonBackgroundColor}
+                        currentMaxResolution={source?.maxResolution}
+                        currentRate={status.playbackRate}
+                        onSelectRate={selectPlaybackRate}
+                        onSelectResolution={selectMaxResolution}
+                        showQuality={showQualityControl}
+                        showSpeed={showSpeedControl}
+                        textColor={controlsTheme.textColor}
+                      />
+                    ) : null}
+                    <IconButton
+                      accessibilityLabel={settingsOpen ? 'Hide playback settings' : 'Show playback settings'}
+                      backgroundColor={controlsTheme.buttonBackgroundColor}
+                      onPress={toggleSettingsPanel}
+                      size={fullscreenButtonSize}
+                    >
+                      <SettingsIcon color={controlsTheme.buttonTextColor} size={fullscreenButtonSize} />
+                    </IconButton>
+                  </View>
+                ) : null}
                 {allowsFullscreen && onToggleFullscreen ? (
                   <IconButton
                     accessibilityLabel={
@@ -1323,6 +1394,106 @@ function KeyMomentsPanel({
   );
 }
 
+function SettingsPanel({
+  accentColor,
+  backgroundColor,
+  currentMaxResolution,
+  currentRate,
+  onSelectRate,
+  onSelectResolution,
+  showQuality,
+  showSpeed,
+  textColor,
+}: {
+  accentColor: string;
+  backgroundColor: string;
+  currentMaxResolution?: MuxMaxResolution;
+  currentRate: number;
+  onSelectRate: (rate: number) => void;
+  onSelectResolution: (resolution?: MuxMaxResolution) => void;
+  showQuality: boolean;
+  showSpeed: boolean;
+  textColor: string;
+}) {
+  return (
+    <View style={[styles.settingsPanel, { backgroundColor }]}>
+      {showSpeed ? (
+        <View style={styles.settingsSection}>
+          <Text style={[styles.settingsTitle, { color: textColor }]}>Speed</Text>
+          <View style={styles.settingsOptionRow}>
+            {SPEED_OPTIONS.map(rate => (
+              <SettingsChip
+                accentColor={accentColor}
+                active={Math.abs(currentRate - rate) < 0.001}
+                key={rate}
+                label={rate === 1 ? 'Normal' : `${rate}×`}
+                onPress={() => onSelectRate(rate)}
+                textColor={textColor}
+              />
+            ))}
+          </View>
+        </View>
+      ) : null}
+      {showQuality ? (
+        <View style={styles.settingsSection}>
+          <Text style={[styles.settingsTitle, { color: textColor }]}>Quality</Text>
+          <View style={styles.settingsOptionRow}>
+            <SettingsChip
+              accentColor={accentColor}
+              active={currentMaxResolution == null}
+              label="Auto"
+              onPress={() => onSelectResolution(undefined)}
+              textColor={textColor}
+            />
+            {QUALITY_OPTIONS.map(resolution => (
+              <SettingsChip
+                accentColor={accentColor}
+                active={currentMaxResolution === resolution}
+                key={resolution}
+                label={resolution}
+                onPress={() => onSelectResolution(resolution)}
+                textColor={textColor}
+              />
+            ))}
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function SettingsChip({
+  accentColor,
+  active,
+  label,
+  onPress,
+  textColor,
+}: {
+  accentColor: string;
+  active: boolean;
+  label: string;
+  onPress: () => void;
+  textColor: string;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.settingsChip,
+        active && { backgroundColor: accentColor, borderColor: accentColor },
+        pressed && styles.pressed,
+      ]}
+    >
+      <Text numberOfLines={1} style={[styles.settingsChipText, { color: textColor }]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 function CaptionTracksPanel({
   backgroundColor,
   onSelect,
@@ -1499,6 +1670,19 @@ function CaptionsIcon({
         ]}
       >
         CC
+      </Text>
+    </View>
+  );
+}
+
+function SettingsIcon({ color, size }: { color: string; size: number }) {
+  return (
+    <View pointerEvents="none" style={{ alignItems: 'center', justifyContent: 'center', height: size, width: size }}>
+      <Text
+        allowFontScaling={false}
+        style={{ color, fontSize: Math.round(size * 0.82), lineHeight: Math.round(size * 0.92) }}
+      >
+        ⚙
       </Text>
     </View>
   );
@@ -1890,6 +2074,43 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     marginTop: 3,
     opacity: 0.82,
+  },
+  settingsPanel: {
+    borderColor: frostBorderColor,
+    borderRadius: 14,
+    borderWidth: frostBorderWidth,
+    bottom: 34,
+    gap: 10,
+    maxWidth: 260,
+    minWidth: 200,
+    padding: 10,
+    position: 'absolute',
+    right: 0,
+  },
+  settingsSection: {
+    gap: 6,
+  },
+  settingsTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    opacity: 0.85,
+  },
+  settingsOptionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  settingsChip: {
+    backgroundColor: 'rgba(248, 251, 255, 0.08)',
+    borderColor: frostBorderColor,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  settingsChipText: {
+    fontSize: 12,
+    fontWeight: '800',
   },
   captionsIconFrame: {
     alignItems: 'center',

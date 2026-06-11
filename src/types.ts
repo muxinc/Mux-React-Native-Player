@@ -202,6 +202,7 @@ export type MuxVideoViewProps = ViewProps & {
   poster?: MuxPosterSource;
   posterTime?: number;
   thumbnailPreviews?: boolean;
+  settingsMenu?: boolean | { speed?: boolean; quality?: boolean };
   allowsFullscreen?: boolean;
   allowsPictureInPicture?: boolean;
   timeUpdateEventInterval?: number;

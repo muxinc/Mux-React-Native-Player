@@ -65,6 +65,7 @@ type MuxVideoMetadata = {
 | `poster` | `boolean \| string \| { uri }` | auto | Poster before first frame. Omit/`true` = auto Mux thumbnail, `false` = none, string/`{uri}` = custom |
 | `posterTime` | `number` | — | Time (seconds) for the auto-generated poster frame |
 | `thumbnailPreviews` | `boolean` | `true` | Show storyboard thumbnail previews above the scrubber while dragging (custom controls) |
+| `settingsMenu` | `boolean \| { speed?, quality? }` | `true` | Gear menu for playback speed & quality. `false` hides it; `{ speed: false }` / `{ quality: false }` hides one section |
 | `allowsFullscreen` | `boolean` | `true` | Fullscreen button + rotate-to-fullscreen ([setup required](orientation-and-fullscreen.md)) |
 | `allowsPictureInPicture` | `boolean` | — | PiP support (also enable the plugin option) |
 | `timeUpdateEventInterval` | `number` | — | Seconds between `onTimeUpdate` events |
@@ -96,12 +97,13 @@ await player.setMuted(true);
 await player.setVolume(0.5);      // 0–1
 await player.setLoop(true);
 await player.setPlaybackRate(1.25); // 0.25–4
+player.setMaxResolution('720p');  // cap quality; undefined = Auto. Reloads + resumes
 await player.setCaptionTrack(trackId); // or null to disable
 player.replace({ playbackId: 'NEW_ID' }); // swap source, keeps settings
 await player.release();           // tear down native playback
 ```
 
-Readable state on the instance: `status`, `currentTime`, `duration`, `bufferedPosition`, `error`, `muted`, `volume`, `loop`, `playbackRate`.
+Readable state on the instance: `status`, `currentTime`, `duration`, `bufferedPosition`, `error`, `muted`, `volume`, `loop`, `playbackRate`, `maxResolution`.
 
 ### Playback status values
 

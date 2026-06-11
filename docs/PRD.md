@@ -49,7 +49,7 @@ VTT parser; preview positioned using existing scrub `trackPageX`/`trackWidth` ma
 
 ---
 
-### 2. Playback speed & quality settings menu `[ ]`
+### 2. Playback speed & quality settings menu `[x]`
 
 **Why:** Player API already supports `setPlaybackRate` and `minResolution`/`maxResolution`;
 there's no UI surface for them.
@@ -158,3 +158,7 @@ release / autoplay presets is where naive RN video implementations fall apart.
 - 2026-06-11 — Item 1 (scrubber thumbnail previews + auto poster) completed. New
   `muxImageUrls.ts` / `storyboard.ts` modules, `poster`/`posterTime`/`thumbnailPreviews`
   props, signed-playback tokens, exported URL helpers, 13 new tests.
+- 2026-06-11 — Item 2 (playback speed & quality settings menu) completed. Gear menu in
+  custom controls with speed chips (0.5–2×) and quality cap (Auto + 720p–2160p); new
+  `player.setMaxResolution()` + `maxResolution` getter that reloads and resumes;
+  `settingsMenu` prop (toggle whole menu or per-section); 2 new tests.
