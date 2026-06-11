@@ -1855,11 +1855,20 @@ function SkipIcon({
         allowFontScaling={false}
         style={{
           position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
           color,
           fontSize: numberFontSize,
           fontWeight: '800',
           textAlign: 'center',
+          textAlignVertical: 'center',
+          lineHeight: size,
           includeFontPadding: false,
+          // Nudge down a couple px: the arrow glyph's visual center sits below
+          // the line-box center, so this keeps the number inside the ring.
+          transform: [{ translateY: Math.round(size * 0.06) }],
         }}
       >
         {seconds}
