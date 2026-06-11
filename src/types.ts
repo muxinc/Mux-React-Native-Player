@@ -87,6 +87,7 @@ export type MuxPlayerStatus = {
   playbackRate: number;
   captionTracks?: MuxVideoCaptionTrack[];
   selectedCaptionTrackId?: string | null;
+  externalPlaybackActive?: boolean;
   error?: string;
 };
 
@@ -204,6 +205,7 @@ export type MuxVideoViewProps = ViewProps & {
   thumbnailPreviews?: boolean;
   settingsMenu?: boolean | { speed?: boolean; quality?: boolean };
   allowsFullscreen?: boolean;
+  allowsAirPlay?: boolean;
   allowsPictureInPicture?: boolean;
   enableNowPlaying?: boolean;
   timeUpdateEventInterval?: number;

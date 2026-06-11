@@ -67,6 +67,7 @@ type MuxVideoMetadata = {
 | `thumbnailPreviews` | `boolean` | `true` | Show storyboard thumbnail previews above the scrubber while dragging (custom controls) |
 | `settingsMenu` | `boolean \| { speed?, quality? }` | `true` | Gear menu for playback speed & quality. `false` hides it; `{ speed: false }` / `{ quality: false }` hides one section |
 | `allowsFullscreen` | `boolean` | `true` | Fullscreen button + rotate-to-fullscreen ([setup required](orientation-and-fullscreen.md)) |
+| `allowsAirPlay` | `boolean` | `true` | Show the AirPlay route button in the custom controls (iOS only) |
 | `allowsPictureInPicture` | `boolean` | — | PiP support (also enable the plugin option) |
 | `enableNowPlaying` | `boolean` | `false` | Publish lock-screen / Now Playing controls (title, artwork, transport). See [Now Playing](#now-playing--lock-screen-controls) |
 | `timeUpdateEventInterval` | `number` | — | Seconds between `onTimeUpdate` events |
@@ -139,6 +140,21 @@ Available tracks arrive on `onSourceLoad` / `onStatusChange` as `captionTracks` 
 ```
 
 All fields are optional; omitted values fall back to the default dark theme.
+
+## AirPlay & casting
+
+**AirPlay (iOS)** — with `controls="custom"`, an `AVRoutePickerView` button appears in
+the controls (toggle with `allowsAirPlay`). External playback is enabled on the player,
+so routing also works from Control Center. When playback moves to an AirPlay device,
+`status.externalPlaybackActive` becomes `true` and the controls show a "Playing via
+AirPlay" indicator. AirPlay is Apple-only; the button does not render on Android.
+
+> Status: the AirPlay native view ships in this version but its on-device behavior has
+> not yet been validated by the maintainers — verify with a development build.
+
+**Chromecast** is not yet included. It requires the Google Cast SDK (a large dependency)
+plus app-level `GCKCastContext` initialization, so it is tracked as a separate roadmap
+item rather than bundled here. See `docs/PRD.md` item 4b.
 
 ## Now Playing / lock-screen controls
 

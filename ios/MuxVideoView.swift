@@ -28,6 +28,7 @@ final class MuxVideoView: ExpoView {
   private var timeUpdateTimer: Timer?
   private var statusObservation: NSKeyValueObservation?
   private var timeControlObservation: NSKeyValueObservation?
+  private var externalPlaybackObservation: NSKeyValueObservation?
   private var nowPlayingEnabled = false
   private var nowPlayingTitle: String?
   private var nowPlayingArtworkURL: URL?
@@ -263,6 +264,12 @@ final class MuxVideoView: ExpoView {
       }
     }
 
+    externalPlaybackObservation = player.observe(\.isExternalPlaybackActive, options: [.new]) { [weak self] _, _ in
+      DispatchQueue.main.async {
+        self?.sendStatusChange()
+      }
+    }
+
     NotificationCenter.default.addObserver(
       self,
       selector: #selector(handlePlaybackEnded),
@@ -341,6 +348,8 @@ final class MuxVideoView: ExpoView {
     player?.currentItem?.preferredForwardBufferDuration = startupBufferDuration
     player?.isMuted = muted
     player?.volume = volume
+    player?.allowsExternalPlayback = true
+    player?.usesExternalPlaybackWhileExternalScreenIsActive = true
     if shouldPlay {
       startPlaybackIfPossible()
     }
@@ -364,6 +373,7 @@ final class MuxVideoView: ExpoView {
     NotificationCenter.default.removeObserver(self)
     statusObservation = nil
     timeControlObservation = nil
+    externalPlaybackObservation = nil
     playerViewController.stopMonitoring()
     playerViewController.player?.pause()
     playerViewController.player = nil
@@ -404,6 +414,7 @@ final class MuxVideoView: ExpoView {
       "playbackRate": Double(playbackRate),
       "captionTracks": captionTracksPayload(),
       "selectedCaptionTrackId": selectedCaptionTrackId() ?? NSNull(),
+      "externalPlaybackActive": playerViewController.player?.isExternalPlaybackActive ?? false,
     ]
 
     if let error {

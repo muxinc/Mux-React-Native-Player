@@ -91,20 +91,34 @@ publishing Now Playing metadata so the OS shows lock-screen transport controls.
 
 ## Tier 2 — Strong differentiators, more native work
 
-### 4. AirPlay & Chromecast `[ ]`
+### 4. AirPlay (& Chromecast decision) `[x]`
+
+> ⚠️ AirPlay native view shipped but NOT runtime-verified (no device build in the loop
+> environment). Uses SDK-only `AVRoutePickerView` (lower risk).
 
 **Why:** Table stakes for serious video apps; common reason to reject a player library.
 
 **Acceptance criteria:**
-- [ ] iOS AirPlay: an `AVRoutePickerView`-backed button in the custom controls (shown when
-  routes are available), togglable via prop.
-- [ ] Chromecast: integration path documented; a cast button + basic load/play to a
-  receiver, or a clearly-scoped follow-up if the dependency footprint is too large for v1.
-- [ ] Casting state reflected in UI (e.g. "Playing on <device>").
-- [ ] Documented, including any required native config / app IDs.
+- [x] iOS AirPlay: an `AVRoutePickerView`-backed button in the custom controls,
+  togglable via the `allowsAirPlay` prop (new `MuxAirPlayButton` native view, iOS-only).
+- [x] Chromecast: scoped as a follow-up (item 4b) per the OR clause — the Google Cast
+  SDK footprint + required app-level init is too heavy to add blind here.
+- [x] Casting state reflected in UI: `status.externalPlaybackActive` drives a
+  "Playing via AirPlay" indicator.
+- [x] Documented in `docs/api-reference.md` (AirPlay & casting section).
 
-**Note:** Chromecast may be split into its own PRD item if the GCKCast SDK + Android
-dependency proves too heavy. Document the decision either way.
+### 4b. Chromecast (follow-up) `[ ]`
+
+Split from item 4. Requires the Google Cast SDK (`google-cast-sdk` pod / 
+`play-services-cast-framework`), a receiver app ID, and `GCKCastContext` init in the
+host AppDelegate/Application — which the config plugin would need to inject. Scope when
+prioritized; should be validated on real devices.
+
+**Acceptance criteria:**
+- [ ] Cast button in custom controls when a receiver is available.
+- [ ] Load + play the current Mux source on the receiver; reflect cast state in UI.
+- [ ] Config plugin injects required native setup; receiver app ID configurable.
+- [ ] Documented, including required native config / app IDs.
 
 ---
 
@@ -173,3 +187,7 @@ release / autoplay presets is where naive RN video implementations fall apart.
   AVAudioSession + Mux-thumbnail artwork. Android: MediaSession + PlayerNotificationManager
   + MediaItem metadata/artwork, plugin permissions. JS typecheck/tests/plugin pass;
   NATIVE CODE UNVERIFIED (no device build) — see warning under item 3.
+- 2026-06-11 — Item 4 (AirPlay) implemented; Chromecast split to follow-up item 4b.
+  New iOS-only `MuxAirPlayButton` native view (AVRoutePickerView) + `allowsAirPlay` prop;
+  external-playback state surfaced via `status.externalPlaybackActive` with an in-controls
+  indicator. JS typecheck/tests/plugin pass; iOS native UNVERIFIED (no device build).

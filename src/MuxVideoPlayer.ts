@@ -36,6 +36,7 @@ const idleStatus: MuxPlayerStatus = {
   playbackRate: 1,
   captionTracks: [],
   selectedCaptionTrackId: null,
+  externalPlaybackActive: false,
 };
 
 export class MuxVideoPlayer {
@@ -222,6 +223,8 @@ export class MuxVideoPlayer {
         event.selectedCaptionTrackId,
         this.statusState.selectedCaptionTrackId ?? null
       ),
+      externalPlaybackActive:
+        event.externalPlaybackActive ?? this.statusState.externalPlaybackActive ?? false,
     };
     if (this.statusState.status === 'playing') {
       this.shouldPlay = true;

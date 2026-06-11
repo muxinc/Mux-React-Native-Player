@@ -385,6 +385,8 @@ class MuxVideoView(
       "playbackRate" to playbackRate.toDouble(),
       "captionTracks" to captionTracksPayload(),
       "selectedCaptionTrackId" to selectedCaptionTrackId().orEmpty(),
+      // AirPlay is iOS-only; Android has no external-playback equivalent here.
+      "externalPlaybackActive" to false,
     )
 
     if (error != null) {

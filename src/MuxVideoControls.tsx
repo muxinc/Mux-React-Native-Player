@@ -26,6 +26,7 @@ import type {
   NormalizedMuxVideoSource,
 } from './types';
 import { MuxVideoPlayer } from './MuxVideoPlayer';
+import NativeAirPlayButton from './NativeAirPlayButton';
 import { buildMuxStoryboardVttUrl, buildMuxThumbnailUrl } from './muxImageUrls';
 import {
   parseStoryboardVtt,
@@ -43,6 +44,7 @@ type MuxVideoControlsProps = {
   source?: NormalizedMuxVideoSource;
   thumbnailPreviews?: boolean;
   settingsMenu?: boolean | { speed?: boolean; quality?: boolean };
+  allowsAirPlay?: boolean;
   theme?: MuxVideoControlsTheme;
   robots?: MuxVideoRobotsConfig;
   allowsFullscreen?: boolean;
@@ -93,6 +95,7 @@ export function MuxVideoControls({
   source,
   thumbnailPreviews = true,
   settingsMenu = true,
+  allowsAirPlay = true,
   theme,
   robots,
   allowsFullscreen = false,
@@ -170,6 +173,8 @@ export function MuxVideoControls({
   const showQualityControl =
     settingsMenu === true || (typeof settingsMenu === 'object' && settingsMenu.quality !== false);
   const showSettingsButton = settingsMenu !== false && (showSpeedControl || showQualityControl);
+  const showAirPlayButton = allowsAirPlay && NativeAirPlayButton != null;
+  const externalPlaybackActive = status.externalPlaybackActive === true;
 
   React.useEffect(() => {
     robotsRequestRef.current += 1;
@@ -793,6 +798,16 @@ export function MuxVideoControls({
                 ) : null}
               </View>
             ) : null}
+            {externalPlaybackActive ? (
+              <View
+                pointerEvents="none"
+                style={[styles.airPlayPill, { backgroundColor: controlsTheme.buttonBackgroundColor }]}
+              >
+                <Text style={[styles.airPlayPillText, { color: controlsTheme.textColor }]}>
+                  Playing via AirPlay
+                </Text>
+              </View>
+            ) : null}
             <View
               pointerEvents={isRobotsFocused ? 'none' : 'box-none'}
               style={[
@@ -1006,6 +1021,13 @@ export function MuxVideoControls({
                       />
                     </IconButton>
                   </View>
+                ) : null}
+                {showAirPlayButton && NativeAirPlayButton ? (
+                  <NativeAirPlayButton
+                    activeTintColor={controlsTheme.accentColor}
+                    style={{ height: fullscreenButtonSize, width: fullscreenButtonSize }}
+                    tintColor={controlsTheme.buttonTextColor}
+                  />
                 ) : null}
                 {showSettingsButton ? (
                   <View style={styles.captionControlWrap}>
@@ -1811,6 +1833,17 @@ const styles = StyleSheet.create({
   },
   centerClusterHidden: {
     opacity: 0,
+  },
+  airPlayPill: {
+    borderColor: frostBorderColor,
+    borderRadius: 999,
+    borderWidth: frostBorderWidth,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  airPlayPillText: {
+    fontSize: 12,
+    fontWeight: '800',
   },
   timeline: {
     bottom: 6,

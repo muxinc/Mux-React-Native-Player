@@ -1,11 +1,11 @@
 {
   "platforms": ["ios", "android"],
   "apple": {
-    "modules": ["MuxReactNativePlayerModule"],
+    "modules": ["MuxReactNativePlayerModule", "MuxAirPlayButtonModule"],
     "podspecPath": "MuxReactNativePlayer.podspec"
   },
   "ios": {
-    "modules": ["MuxReactNativePlayerModule"]
+    "modules": ["MuxReactNativePlayerModule", "MuxAirPlayButtonModule"]
   },
   "android": {
     "modules": ["com.mux.reactnativeplayer.MuxReactNativePlayerModule"]
