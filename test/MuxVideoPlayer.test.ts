@@ -10,6 +10,7 @@ function createNativeRef(overrides: Partial<MuxNativeViewRef> = {}): MuxNativeVi
     replay: vi.fn().mockResolvedValue(undefined),
     seekBy: vi.fn().mockResolvedValue(undefined),
     seekTo: vi.fn().mockResolvedValue(undefined),
+    seekToLive: vi.fn().mockResolvedValue(undefined),
     setMuted: vi.fn().mockResolvedValue(undefined),
     setVolume: vi.fn().mockResolvedValue(undefined),
     setLoop: vi.fn().mockResolvedValue(undefined),
@@ -76,6 +77,32 @@ describe('MuxVideoPlayer', () => {
 
     expect(listener).not.toHaveBeenCalled();
     expect(player.maxResolution).toBe('1080p');
+  });
+
+  it('reflects live status and forwards seekToLive to the native ref', async () => {
+    const player = new MuxVideoPlayer('abc123');
+    const seekToLive = vi.fn().mockResolvedValue(undefined);
+    player._attachNativeRef(createNativeRef({ seekToLive }));
+
+    expect(player.isLive).toBe(false);
+    player._handleStatusChange({
+      status: 'playing',
+      currentTime: 95,
+      duration: 0,
+      bufferedPosition: 95,
+      muted: false,
+      volume: 1,
+      loop: false,
+      playbackRate: 1,
+      isLive: true,
+      seekableStart: 0,
+      seekableEnd: 100,
+    });
+    expect(player.isLive).toBe(true);
+    expect(player._getSnapshot().status.seekableEnd).toBe(100);
+
+    await player.seekToLiveEdge();
+    expect(seekToLive).toHaveBeenCalledOnce();
   });
 
   it('updates caption selection and forwards native command', async () => {

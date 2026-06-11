@@ -137,7 +137,11 @@ release / autoplay presets is where naive RN video implementations fall apart.
 
 ---
 
-### 6. Live stream support `[ ]`
+### 6. Live stream support `[x]`
+
+> ⚠️ Native detection/seek shipped but NOT runtime-verified against a real live stream
+> (no device build in the loop env). iOS uses AVFoundation seekable ranges; Android uses
+> media3 `isCurrentMediaItemLive` / `seekToDefaultPosition`.
 
 **Why:** Live + DVR behavior differs from VOD and needs explicit handling.
 
@@ -195,3 +199,8 @@ release / autoplay presets is where naive RN video implementations fall apart.
   pure, tested `muxFeedWindow` helper; manages a sliding window of players (preload/release,
   mute/autoplay/loop presets). Example `tiktok.tsx` refactored to use it; new `docs/feeds.md`.
   7 new tests; JS typecheck + 30 tests pass. (Example screen not typechecked in the loop env.)
+- 2026-06-11 — Item 6 (live stream support) implemented. Status gains `isLive` /
+  `seekableStart` / `seekableEnd`; `player.seekToLiveEdge()` + `isLive` getter; custom
+  controls show a LIVE badge (tap → live edge) and map the scrubber over the DVR window.
+  iOS via AVFoundation seekable ranges, Android via media3 live APIs. 1 new test; JS
+  typecheck + 31 tests pass. NATIVE live behavior UNVERIFIED (no live-stream device test).

@@ -98,6 +98,10 @@ public final class MuxReactNativePlayerModule: Module {
         view.seekTo(seconds)
       }
 
+      AsyncFunction("seekToLive") { (view: MuxVideoView) in
+        view.seekToLive()
+      }
+
       AsyncFunction("setMuted") { (view: MuxVideoView, muted: Bool) in
         view.setMuted(muted)
       }

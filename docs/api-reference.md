@@ -95,6 +95,7 @@ await player.pause();
 await player.replay();
 await player.seekTo(12);          // absolute seconds
 await player.seekBy(10);          // relative seconds (negative rewinds)
+await player.seekToLiveEdge();    // jump to the live edge (no-op for VOD)
 await player.setMuted(true);
 await player.setVolume(0.5);      // 0–1
 await player.setLoop(true);
@@ -105,11 +106,28 @@ player.replace({ playbackId: 'NEW_ID' }); // swap source, keeps settings
 await player.release();           // tear down native playback
 ```
 
-Readable state on the instance: `status`, `currentTime`, `duration`, `bufferedPosition`, `error`, `muted`, `volume`, `loop`, `playbackRate`, `maxResolution`.
+Readable state on the instance: `status`, `currentTime`, `duration`, `bufferedPosition`, `error`, `muted`, `volume`, `loop`, `playbackRate`, `maxResolution`, `isLive`.
 
 ### Playback status values
 
 `idle → loading → ready → playing / paused / buffering → ended`, with `error` on failure. Subscribe via `onStatusChange` on the view.
+
+## Live streams & DVR
+
+Live playback is detected automatically and exposed on the status:
+
+- `status.isLive` — `true` for a live stream.
+- `status.seekableStart` / `status.seekableEnd` — the seekable (DVR) window in seconds.
+  The custom-controls scrubber maps over this window for live, instead of `0..duration`.
+
+With `controls="custom"`, a live stream shows a **LIVE badge** instead of the time
+readout: filled with the accent color when at the live edge, and showing how far behind
+(`LIVE −0:12`) when you scrub back into the DVR window. Tapping it jumps to the edge.
+
+Programmatically: `player.seekToLiveEdge()` (no-op for VOD) and the `player.isLive` getter.
+
+> Status: live/DVR handling ships in this version but its on-device behavior has not yet
+> been validated by the maintainers — verify with a real live stream + device build.
 
 ## Captions
 

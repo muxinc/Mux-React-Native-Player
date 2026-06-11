@@ -88,6 +88,9 @@ export type MuxPlayerStatus = {
   captionTracks?: MuxVideoCaptionTrack[];
   selectedCaptionTrackId?: string | null;
   externalPlaybackActive?: boolean;
+  isLive?: boolean;
+  seekableStart?: number;
+  seekableEnd?: number;
   error?: string;
 };
 
@@ -162,6 +165,7 @@ export type MuxNativeViewRef = {
   replay: () => Promise<void>;
   seekBy: (seconds: number) => Promise<void>;
   seekTo: (seconds: number) => Promise<void>;
+  seekToLive: () => Promise<void>;
   setMuted: (muted: boolean) => Promise<void>;
   setVolume: (volume: number) => Promise<void>;
   setLoop: (loop: boolean) => Promise<void>;

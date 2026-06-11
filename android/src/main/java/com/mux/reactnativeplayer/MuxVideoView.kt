@@ -301,6 +301,17 @@ class MuxVideoView(
     sendTimeUpdate()
   }
 
+  fun seekToLive() {
+    val currentPlayer = player ?: return
+    if (currentPlayer.isCurrentMediaItemLive) {
+      currentPlayer.seekToDefaultPosition()
+      currentPlayer.play()
+      shouldPlay = true
+    }
+    sendStatusChange()
+    sendTimeUpdate()
+  }
+
   fun release() {
     releasePlayer()
     sourceFingerprint = null
@@ -387,6 +398,10 @@ class MuxVideoView(
       "selectedCaptionTrackId" to selectedCaptionTrackId().orEmpty(),
       // AirPlay is iOS-only; Android has no external-playback equivalent here.
       "externalPlaybackActive" to false,
+      "isLive" to (player?.isCurrentMediaItemLive ?: false),
+      // media3 normalizes the live/DVR timeline to the current window (0..duration).
+      "seekableStart" to 0.0,
+      "seekableEnd" to durationSeconds(),
     )
 
     if (error != null) {

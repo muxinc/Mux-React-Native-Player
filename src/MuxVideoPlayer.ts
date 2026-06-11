@@ -37,6 +37,9 @@ const idleStatus: MuxPlayerStatus = {
   captionTracks: [],
   selectedCaptionTrackId: null,
   externalPlaybackActive: false,
+  isLive: false,
+  seekableStart: 0,
+  seekableEnd: 0,
 };
 
 export class MuxVideoPlayer {
@@ -82,6 +85,10 @@ export class MuxVideoPlayer {
     return this.statusState.error;
   }
 
+  get isLive(): boolean {
+    return this.statusState.isLive ?? false;
+  }
+
   play(): Promise<void> {
     this.shouldPlay = true;
     this.updateSnapshot();
@@ -109,6 +116,14 @@ export class MuxVideoPlayer {
 
   seekTo(seconds: number): Promise<void> {
     return this.runNativeCommand('seekTo', seconds);
+  }
+
+  /** Seek a live stream to the current live edge. No-op for VOD. */
+  seekToLiveEdge(): Promise<void> {
+    this.shouldPlay = true;
+    this.updateSnapshot();
+    this.emitChange();
+    return this.runNativeCommand('seekToLive');
   }
 
   setMuted(muted: boolean): Promise<void> {
@@ -225,6 +240,9 @@ export class MuxVideoPlayer {
       ),
       externalPlaybackActive:
         event.externalPlaybackActive ?? this.statusState.externalPlaybackActive ?? false,
+      isLive: event.isLive ?? this.statusState.isLive ?? false,
+      seekableStart: event.seekableStart ?? this.statusState.seekableStart ?? 0,
+      seekableEnd: event.seekableEnd ?? this.statusState.seekableEnd ?? 0,
     };
     if (this.statusState.status === 'playing') {
       this.shouldPlay = true;

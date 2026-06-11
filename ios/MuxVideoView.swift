@@ -229,6 +229,38 @@ final class MuxVideoView: ExpoView {
     sendTimeUpdate()
   }
 
+  func seekToLive() {
+    let range = seekableRange()
+    guard range.end > 0 else {
+      return
+    }
+    didReachEnd = false
+    let target = CMTime(seconds: range.end, preferredTimescale: 600)
+    playerViewController.player?.seek(to: target, toleranceBefore: .positiveInfinity, toleranceAfter: .zero)
+    shouldPlay = true
+    startPlaybackIfPossible()
+    sendStatusChange()
+    sendTimeUpdate()
+  }
+
+  private func isLiveStream() -> Bool {
+    guard let duration = playerViewController.player?.currentItem?.duration else {
+      return false
+    }
+    return duration.isIndefinite
+  }
+
+  private func seekableRange() -> (start: Double, end: Double) {
+    guard
+      let last = playerViewController.player?.currentItem?.seekableTimeRanges.last?.timeRangeValue
+    else {
+      return (0, 0)
+    }
+    let start = CMTimeGetSeconds(last.start)
+    let end = CMTimeGetSeconds(CMTimeAdd(last.start, last.duration))
+    return (start.isFinite ? max(0, start) : 0, end.isFinite ? max(0, end) : 0)
+  }
+
   func release() {
     releasePlayer()
     sourceFingerprint = nil
@@ -415,6 +447,9 @@ final class MuxVideoView: ExpoView {
       "captionTracks": captionTracksPayload(),
       "selectedCaptionTrackId": selectedCaptionTrackId() ?? NSNull(),
       "externalPlaybackActive": playerViewController.player?.isExternalPlaybackActive ?? false,
+      "isLive": isLiveStream(),
+      "seekableStart": seekableRange().start,
+      "seekableEnd": seekableRange().end,
     ]
 
     if let error {

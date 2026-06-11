@@ -133,11 +133,18 @@ export function MuxVideoControls({
   const { width: windowWidth } = useWindowDimensions();
   const storyboard = useStoryboard(thumbnailPreviews ? source : undefined);
   const duration = Number.isFinite(status.duration) ? status.duration : 0;
-  const playerTime = clamp(status.currentTime, 0, duration || 0);
+  const isLive = status.isLive === true;
+  const seekableStart = Number.isFinite(status.seekableStart) ? (status.seekableStart as number) : 0;
+  const seekableEnd = Number.isFinite(status.seekableEnd) ? (status.seekableEnd as number) : 0;
+  const liveWindow = Math.max(0, seekableEnd - seekableStart);
+  const timelineStart = isLive ? seekableStart : 0;
+  const timelineDuration = isLive ? liveWindow : duration;
+  const timelineEnd = timelineStart + timelineDuration;
+  const playerTime = clamp(status.currentTime, timelineStart, timelineEnd || timelineStart);
   const displayTime = scrubbing
-    ? clamp(scrubTime, 0, duration || 0)
+    ? clamp(scrubTime, timelineStart, timelineEnd || timelineStart)
     : pendingTarget !== null
-      ? clamp(pendingTarget, 0, duration || 0)
+      ? clamp(pendingTarget, timelineStart, timelineEnd || timelineStart)
       : playerTime;
 
   React.useEffect(() => {
@@ -151,9 +158,13 @@ export function MuxVideoControls({
     const timeout = setTimeout(() => setPendingTarget(null), 1500);
     return () => clearTimeout(timeout);
   }, [pendingTarget, playerTime]);
-  const bufferedPosition = clamp(status.bufferedPosition, 0, duration || 0);
-  const progress = duration > 0 ? displayTime / duration : 0;
-  const buffered = duration > 0 ? bufferedPosition / duration : 0;
+  const bufferedPosition = clamp(status.bufferedPosition, timelineStart, timelineEnd || timelineStart);
+  const progress =
+    timelineDuration > 0 ? (displayTime - timelineStart) / timelineDuration : isLive ? 1 : 0;
+  const buffered =
+    timelineDuration > 0 ? (bufferedPosition - timelineStart) / timelineDuration : 0;
+  const behindLiveEdge = isLive ? Math.max(0, timelineEnd - displayTime) : 0;
+  const atLiveEdge = isLive && behindLiveEdge < 5;
   const isPlaying = status.status === 'playing' || shouldPlay;
   const robotsEnabled = robots != null && robots.enabled !== false;
   const robotsAssetId = robots?.assetId;
@@ -362,6 +373,7 @@ export function MuxVideoControls({
     trackWidth: 0,
     trackPageX: 0,
     duration: 0,
+    offset: 0,
     lastSeekAt: 0,
     currentTime: 0,
     wasPlaying: false,
@@ -388,15 +400,16 @@ export function MuxVideoControls({
 
   React.useEffect(() => {
     scrubStateRef.current.trackWidth = trackWidth;
-    scrubStateRef.current.duration = duration;
-  }, [trackWidth, duration]);
+    scrubStateRef.current.duration = timelineDuration;
+    scrubStateRef.current.offset = timelineStart;
+  }, [trackWidth, timelineDuration, timelineStart]);
 
   const computeTimeFromX = React.useCallback((x: number): number => {
-    const { trackWidth: width, duration: dur } = scrubStateRef.current;
+    const { trackWidth: width, duration: dur, offset } = scrubStateRef.current;
     if (width <= 0 || dur <= 0) {
-      return 0;
+      return offset;
     }
-    return clamp(x / width, 0, 1) * dur;
+    return offset + clamp(x / width, 0, 1) * dur;
   }, []);
 
   const isPlayingRef = React.useRef(isPlaying);
@@ -489,6 +502,12 @@ export function MuxVideoControls({
     setSettingsOpen(false);
     onToggleFullscreen?.();
   }, [keepAlive, onToggleFullscreen]);
+
+  const seekToLive = React.useCallback(() => {
+    keepAlive();
+    setPendingTarget(null);
+    runPlayerCommand(player.seekToLiveEdge());
+  }, [keepAlive, player]);
 
   const toggleCaptionsPanel = React.useCallback(() => {
     keepAlive();
@@ -975,27 +994,55 @@ export function MuxVideoControls({
               </View>
             </View>
             <View style={styles.timeRow}>
-              <View
-                style={[
-                  styles.timePill,
-                  {
-                    backgroundColor: controlsTheme.buttonBackgroundColor,
-                    paddingHorizontal: timePillHorizontalPadding,
-                  },
-                ]}
-              >
-                <Text
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.85}
-                  numberOfLines={1}
-                  style={[
-                    styles.timeText,
-                    { color: controlsTheme.textColor, fontSize: timeFontSize },
+              {isLive ? (
+                <Pressable
+                  accessibilityLabel="Go to live edge"
+                  accessibilityRole="button"
+                  onPress={seekToLive}
+                  style={({ pressed }) => [
+                    styles.livePill,
+                    {
+                      backgroundColor: atLiveEdge
+                        ? controlsTheme.accentColor
+                        : controlsTheme.buttonBackgroundColor,
+                      paddingHorizontal: timePillHorizontalPadding,
+                    },
+                    pressed && styles.pressed,
                   ]}
                 >
-                  {formatTime(displayTime)} / {formatTime(duration)}
-                </Text>
-              </View>
+                  <View
+                    style={[
+                      styles.liveDot,
+                      { backgroundColor: atLiveEdge ? '#ffffff' : controlsTheme.accentColor },
+                    ]}
+                  />
+                  <Text style={[styles.liveText, { color: controlsTheme.textColor, fontSize: timeFontSize }]}>
+                    {atLiveEdge ? 'LIVE' : `LIVE −${formatTime(behindLiveEdge)}`}
+                  </Text>
+                </Pressable>
+              ) : (
+                <View
+                  style={[
+                    styles.timePill,
+                    {
+                      backgroundColor: controlsTheme.buttonBackgroundColor,
+                      paddingHorizontal: timePillHorizontalPadding,
+                    },
+                  ]}
+                >
+                  <Text
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.85}
+                    numberOfLines={1}
+                    style={[
+                      styles.timeText,
+                      { color: controlsTheme.textColor, fontSize: timeFontSize },
+                    ]}
+                  >
+                    {formatTime(displayTime)} / {formatTime(duration)}
+                  </Text>
+                </View>
+              )}
               <View style={styles.timeControls}>
                 {hasCaptionTracks ? (
                   <View style={styles.captionControlWrap}>
@@ -1951,6 +1998,25 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  livePill: {
+    alignItems: 'center',
+    borderColor: frostBorderColor,
+    borderRadius: 999,
+    borderWidth: frostBorderWidth,
+    flexDirection: 'row',
+    gap: 6,
+    paddingVertical: 4,
+  },
+  liveDot: {
+    borderRadius: 4,
+    height: 8,
+    width: 8,
+  },
+  liveText: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   scrubPreview: {
     backgroundColor: '#000',
