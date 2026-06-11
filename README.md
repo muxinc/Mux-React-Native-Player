@@ -9,6 +9,15 @@ A React native video player with built-in Mux Data and Mux Robots integrations. 
 - iOS: [`muxinc/mux-player-swift`](https://github.com/muxinc/mux-player-swift)
 - Android: [`muxinc/mux-player-android`](https://github.com/muxinc/mux-player-android)
 
+## Documentation
+
+Full guides live in [`docs/`](https://github.com/muxinc/Mux-React-Native-Player/tree/main/docs):
+
+- [Getting Started](https://github.com/muxinc/Mux-React-Native-Player/blob/main/docs/getting-started.md)
+- [Orientation & Fullscreen](https://github.com/muxinc/Mux-React-Native-Player/blob/main/docs/orientation-and-fullscreen.md) — required setup for landscape/theater mode
+- [API Reference](https://github.com/muxinc/Mux-React-Native-Player/blob/main/docs/api-reference.md)
+- [Mux Robots](https://github.com/muxinc/Mux-React-Native-Player/blob/main/docs/robots.md)
+
 ## Requirements
 
 - React Native 0.75+ with Expo Modules

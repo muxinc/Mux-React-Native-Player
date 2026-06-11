@@ -697,6 +697,7 @@ export function MuxVideoControls({
               {
                 gap: centerVerticalGap,
                 left: offscreenLeftInset,
+                paddingBottom: hasRobotsActions ? 88 : 0,
                 paddingHorizontal: centerHorizontalPadding,
                 right: offscreenRightInset,
               },
@@ -1493,7 +1494,6 @@ const styles = StyleSheet.create({
     gap: 20,
     justifyContent: 'center',
     overflow: 'hidden',
-    paddingBottom: 88,
     paddingHorizontal: 16,
   },
   gradientTop: {

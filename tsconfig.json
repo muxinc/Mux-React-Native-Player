@@ -11,6 +11,7 @@
     ],
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "noEmit": false,
     "outDir": "build",
     "resolveJsonModule": true,
     "skipLibCheck": true,
