@@ -1,7 +1,7 @@
 # Mux React Native Player
 
 <p align="center">
-  <img src="assets/player_screenshot.png" alt="Mux React Native Player" width="320" />
+  <img src="https://raw.githubusercontent.com/muxinc/Mux-React-Native-Player/main/assets/player_screenshot.png" alt="Mux React Native Player" width="320" />
 </p>
 
 A React native video player with built-in Mux Data and Mux Robots integrations. Native playback is delegated to:
