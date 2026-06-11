@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
-  InteractionManager,
   StyleSheet,
   useWindowDimensions,
   View,
@@ -14,7 +13,9 @@ import { FlashList } from '@shopify/flash-list';
 import type { ListRenderItemInfo } from '@shopify/flash-list';
 import {
   MuxVideoView,
-  useMuxVideoPlayer,
+  useMuxVideoFeed,
+  type MuxVideoPlayer,
+  type MuxVideoSource,
 } from '@mux/mux-react-native-player';
 
 import {
@@ -24,52 +25,49 @@ import {
 } from '../lib/feedVideos';
 import { requestRobots } from '../lib/exampleVideo';
 
-// Keep the native-player window small; native buffering handles smooth starts.
+// Keep the live native-player window small; useMuxVideoFeed releases the rest.
 const PRELOAD_AHEAD = 1;
 const PRELOAD_BEHIND = 0;
-const IMMEDIATE_PRELOAD_AHEAD = 1;
-const STAGGERED_PRELOAD_DELAY_MS = 200;
-const START_UNMUTE_DELAY_MS = 150;
 const FEED_MAX_RESOLUTION = '720p' as const;
-
-type ScrollDirection = 'up' | 'down';
 
 export default function TikTokScreen() {
   const { width } = useWindowDimensions();
   const [feedHeight, setFeedHeight] = React.useState(0);
   const [activeIndex, setActiveIndex] = React.useState(0);
-  const [scrollDirection, setScrollDirection] =
-    React.useState<ScrollDirection>('down');
   const isMomentumScrollingRef = React.useRef(false);
   const itemHeight = Math.max(1, feedHeight);
   const hasMeasuredFeed = feedHeight > 0;
 
-  const clampFeedIndex = React.useCallback((index: number) => {
-    return Math.max(0, Math.min(feedVideos.length - 1, index));
-  }, []);
-
-  const commitActiveIndex = React.useCallback(
-    (nextIndex: number) => {
-      const clampedIndex = clampFeedIndex(nextIndex);
-      setActiveIndex(currentIndex => {
-        if (clampedIndex === currentIndex) {
-          return currentIndex;
-        }
-        setScrollDirection(clampedIndex > currentIndex ? 'down' : 'up');
-        return clampedIndex;
-      });
-    },
-    [clampFeedIndex]
+  const feedSources = React.useMemo<MuxVideoSource[]>(
+    () =>
+      feedVideos.map(video => ({
+        ...getFeedVideoSource(video),
+        maxResolution: FEED_MAX_RESOLUTION,
+      })),
+    []
   );
+
+  // Centralized windowed player lifecycle: preload around the active item,
+  // release everything else, autoplay + loop the active video.
+  const feed = useMuxVideoFeed(feedSources, activeIndex, {
+    preloadAhead: PRELOAD_AHEAD,
+    preloadBehind: PRELOAD_BEHIND,
+    autoplay: true,
+    loop: true,
+  });
 
   const commitActiveIndexFromOffset = React.useCallback(
     (offsetY: number) => {
       if (feedHeight <= 0) {
         return;
       }
-      commitActiveIndex(Math.round(offsetY / feedHeight));
+      const nextIndex = Math.max(
+        0,
+        Math.min(feedVideos.length - 1, Math.round(offsetY / feedHeight))
+      );
+      setActiveIndex(current => (current === nextIndex ? current : nextIndex));
     },
-    [commitActiveIndex, feedHeight]
+    [feedHeight]
   );
 
   const onMomentumScrollBegin = React.useCallback(() => {
@@ -96,27 +94,6 @@ export default function TikTokScreen() {
     [commitActiveIndexFromOffset]
   );
 
-  const shouldPreloadIndex = React.useCallback(
-    (index: number) => {
-      if (index === activeIndex) {
-        return true;
-      }
-
-      if (scrollDirection === 'down') {
-        return (
-          index >= activeIndex - PRELOAD_BEHIND &&
-          index <= activeIndex + PRELOAD_AHEAD
-        );
-      }
-
-      return (
-        index >= activeIndex - PRELOAD_AHEAD &&
-        index <= activeIndex + PRELOAD_BEHIND
-      );
-    },
-    [activeIndex, scrollDirection]
-  );
-
   const renderItem = React.useCallback(
     ({ item, index, target }: ListRenderItemInfo<FeedVideo>) => {
       if (target !== 'Cell') {
@@ -124,36 +101,29 @@ export default function TikTokScreen() {
       }
 
       const isActive = index === activeIndex;
-      const offsetFromActive = index - activeIndex;
-
       return (
         <FeedVideoItem
           active={isActive}
           height={itemHeight}
-          preloadDelay={getPreloadDelay(offsetFromActive)}
-          shouldPreload={shouldPreloadIndex(index)}
+          player={feed.getPlayer(index)}
           showControls={isActive}
           video={item}
           width={width}
         />
       );
     },
-    [
-      activeIndex,
-      itemHeight,
-      shouldPreloadIndex,
-      width,
-    ]
+    [activeIndex, feed, itemHeight, width]
   );
 
   const listExtraData = React.useMemo(
     () => ({
       activeIndex,
       itemHeight,
-      scrollDirection,
       width,
+      windowStart: feed.window.start,
+      windowEnd: feed.window.end,
     }),
-    [activeIndex, itemHeight, scrollDirection, width]
+    [activeIndex, feed.window.end, feed.window.start, itemHeight, width]
   );
 
   return (
@@ -183,7 +153,6 @@ export default function TikTokScreen() {
           onScrollEndDrag={onScrollEndDrag}
           pagingEnabled
           removeClippedSubviews={false}
-          overrideProps={flashListOverrideProps}
           renderItem={renderItem}
           showsVerticalScrollIndicator={false}
           snapToAlignment="start"
@@ -198,139 +167,27 @@ export default function TikTokScreen() {
 type FeedVideoItemProps = {
   active: boolean;
   height: number;
-  preloadDelay: number;
-  shouldPreload: boolean;
+  player: MuxVideoPlayer | null;
   showControls: boolean;
   video: FeedVideo;
   width: number;
 };
 
 const FeedVideoItem = React.memo(function FeedVideoItem({
-  active,
   height,
-  preloadDelay,
-  shouldPreload,
+  player,
   showControls,
   video,
   width,
 }: FeedVideoItemProps) {
-  const unmuteTimeoutRef = React.useRef<
-    ReturnType<typeof setTimeout> | undefined
-  >(undefined);
-  const [isPreloadArmed, setIsPreloadArmed] = React.useState(
-    shouldPreload && preloadDelay === 0
-  );
-  const [isReady, setIsReady] = React.useState(false);
-  const shouldUsePlayer = shouldPreload && isPreloadArmed;
-  const source = React.useMemo(() => {
-    if (!shouldUsePlayer) {
-      return undefined;
-    }
-
-    return {
-      ...getFeedVideoSource(video),
-      maxResolution: FEED_MAX_RESOLUTION,
-    };
-  }, [shouldUsePlayer, video]);
-  const player = useMuxVideoPlayer(source);
-
-  const clearUnmuteTimeout = React.useCallback(() => {
-    if (unmuteTimeoutRef.current != null) {
-      clearTimeout(unmuteTimeoutRef.current);
-      unmuteTimeoutRef.current = undefined;
-    }
-  }, []);
-
-  React.useEffect(() => {
-    setIsReady(false);
-    clearUnmuteTimeout();
-  }, [clearUnmuteTimeout, video.id]);
-
-  React.useEffect(() => clearUnmuteTimeout, [clearUnmuteTimeout]);
-
-  React.useEffect(() => {
-    if (!shouldPreload) {
-      setIsPreloadArmed(false);
-      return;
-    }
-
-    if (preloadDelay === 0) {
-      setIsPreloadArmed(true);
-      return;
-    }
-
-    setIsPreloadArmed(false);
-    let timeout: ReturnType<typeof setTimeout> | undefined;
-    const interaction = InteractionManager.runAfterInteractions(() => {
-      timeout = setTimeout(() => {
-        setIsPreloadArmed(true);
-      }, preloadDelay);
-    });
-
-    return () => {
-      interaction.cancel();
-      if (timeout != null) {
-        clearTimeout(timeout);
-      }
-    };
-  }, [preloadDelay, shouldPreload, video.id]);
-
-  React.useEffect(() => {
-    runFeedPlayerCommand(player.setLoop(true));
-  }, [player]);
-
-  React.useEffect(() => {
-    clearUnmuteTimeout();
-
-    if (!shouldUsePlayer) {
-      setIsReady(false);
-      runFeedPlayerCommand(player.setMuted(true));
-      runFeedPlayerCommand(player.pause());
-      runFeedPlayerCommand(player.release());
-      return;
-    }
-
-    if (active) {
-      // Set playWhenReady even before source load. Once the item is ready,
-      // unmute after a short delay so the first decoded video frames are shown.
-      runFeedPlayerCommand(player.setMuted(true));
-      runFeedPlayerCommand(player.play());
-
-      if (isReady) {
-        unmuteTimeoutRef.current = setTimeout(() => {
-          unmuteTimeoutRef.current = undefined;
-          runFeedPlayerCommand(player.setMuted(false));
-        }, START_UNMUTE_DELAY_MS);
-      }
-
-      return clearUnmuteTimeout;
-    }
-
-    runFeedPlayerCommand(player.setMuted(true));
-    runFeedPlayerCommand(player.pause());
-  }, [active, clearUnmuteTimeout, isReady, player, shouldUsePlayer, video.id]);
-
   return (
     <View style={[styles.item, { height, width }]}>
-      {shouldUsePlayer ? (
+      {player ? (
         <MuxVideoView
           allowsFullscreen={false}
           controls={showControls ? 'custom' : 'none'}
           contentFit="cover"
           nativeControls={false}
-          onSourceError={event => {
-            if (
-              event.playbackId == null ||
-              event.playbackId === video.playbackId
-            ) {
-              setIsReady(false);
-            }
-          }}
-          onSourceLoad={event => {
-            if (event.playbackId === video.playbackId) {
-              setIsReady(true);
-            }
-          }}
           player={player}
           robots={
             showControls
@@ -361,35 +218,15 @@ function areFeedVideoItemPropsEqual(
   return (
     previous.active === next.active &&
     previous.height === next.height &&
-    previous.preloadDelay === next.preloadDelay &&
-    previous.shouldPreload === next.shouldPreload &&
+    previous.player === next.player &&
     previous.showControls === next.showControls &&
     previous.video.id === next.video.id &&
     previous.width === next.width
   );
 }
 
-function getPreloadDelay(offsetFromActive: number): number {
-  const distance = Math.abs(offsetFromActive);
-  if (distance <= IMMEDIATE_PRELOAD_AHEAD) {
-    return 0;
-  }
-
-  return (distance - IMMEDIATE_PRELOAD_AHEAD) * STAGGERED_PRELOAD_DELAY_MS;
-}
-
-function runFeedPlayerCommand(command: Promise<void>): void {
-  command.catch(() => {
-    // FlashList can unmount a native row while Expo view commands are settling.
-  });
-}
-
 const maintainVisibleContentPosition = {
   disabled: true,
-};
-
-const flashListOverrideProps = {
-  initialDrawBatchSize: PRELOAD_AHEAD + PRELOAD_BEHIND + 1,
 };
 
 const styles = StyleSheet.create({

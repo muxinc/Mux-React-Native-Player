@@ -9,6 +9,12 @@ export {
 export type { MuxThumbnailFitMode, MuxThumbnailOptions } from './muxImageUrls';
 export { parseStoryboardVtt, tileForTime } from './storyboard';
 export type { ParsedStoryboard, StoryboardTile } from './storyboard';
+export { muxFeedWindow, useMuxVideoFeed } from './useMuxVideoFeed';
+export type {
+  MuxVideoFeed,
+  MuxVideoFeedOptions,
+  MuxVideoFeedWindow,
+} from './useMuxVideoFeed';
 export type {
   MuxContentFit,
   MuxPosterSource,

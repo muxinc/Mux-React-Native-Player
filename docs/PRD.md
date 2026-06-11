@@ -122,7 +122,7 @@ prioritized; should be validated on real devices.
 
 ---
 
-### 5. First-class feed/shorts support (`useMuxVideoFeed`) `[ ]`
+### 5. First-class feed/shorts support (`useMuxVideoFeed`) `[x]`
 
 **Why:** The example already has a TikTok-style feed. Productizing preload / off-screen
 release / autoplay presets is where naive RN video implementations fall apart.
@@ -191,3 +191,7 @@ release / autoplay presets is where naive RN video implementations fall apart.
   New iOS-only `MuxAirPlayButton` native view (AVRoutePickerView) + `allowsAirPlay` prop;
   external-playback state surfaced via `status.externalPlaybackActive` with an in-controls
   indicator. JS typecheck/tests/plugin pass; iOS native UNVERIFIED (no device build).
+- 2026-06-11 — Item 5 (feed/shorts support) completed. New `useMuxVideoFeed` hook with a
+  pure, tested `muxFeedWindow` helper; manages a sliding window of players (preload/release,
+  mute/autoplay/loop presets). Example `tiktok.tsx` refactored to use it; new `docs/feeds.md`.
+  7 new tests; JS typecheck + 30 tests pass. (Example screen not typechecked in the loop env.)

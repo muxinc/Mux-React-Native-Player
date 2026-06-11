@@ -16,6 +16,7 @@ Full guides live in [`docs/`](https://github.com/muxinc/Mux-React-Native-Player/
 - [Getting Started](https://github.com/muxinc/Mux-React-Native-Player/blob/main/docs/getting-started.md)
 - [Orientation & Fullscreen](https://github.com/muxinc/Mux-React-Native-Player/blob/main/docs/orientation-and-fullscreen.md) — required setup for landscape/theater mode
 - [API Reference](https://github.com/muxinc/Mux-React-Native-Player/blob/main/docs/api-reference.md)
+- [Feeds & Shorts](https://github.com/muxinc/Mux-React-Native-Player/blob/main/docs/feeds.md) — `useMuxVideoFeed`
 - [Mux Robots](https://github.com/muxinc/Mux-React-Native-Player/blob/main/docs/robots.md)
 
 ## Requirements

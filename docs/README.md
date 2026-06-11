@@ -5,6 +5,7 @@ A React Native video player with built-in Mux Data and Mux Robots integrations. 
 - [Getting Started](getting-started.md) — install, config plugin, and your first player
 - [Orientation & Fullscreen](orientation-and-fullscreen.md) — letting the player rotate to landscape, theater mode, Info.plist setup
 - [API Reference](api-reference.md) — `MuxVideoView` props, player commands, events, theming
+- [Feeds & Shorts](feeds.md) — `useMuxVideoFeed` for TikTok/Reels-style vertical feeds
 - [Mux Robots](robots.md) — AI summaries, chapters, and key moments with a secure backend
 
 ## Requirements
