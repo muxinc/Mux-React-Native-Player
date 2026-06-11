@@ -4,7 +4,7 @@
   <img src="assets/player_screenshot.png" alt="Mux React Native Player" width="320" />
 </p>
 
-React Native bindings for Mux-owned native playback on iOS and Android, with built-in Mux Data integration. The JavaScript API is inspired by `expo-video`; native playback is delegated to:
+A React native video player with built-in Mux Data and Mux Robots integrations. Native playback is delegated to:
 
 - iOS: [`muxinc/mux-player-swift`](https://github.com/muxinc/mux-player-swift)
 - Android: [`muxinc/mux-player-android`](https://github.com/muxinc/mux-player-android)
@@ -121,9 +121,12 @@ When using `controls="custom"`, you can add Mux Robots buttons (summary, chapter
   player={player}
   controls="custom"
   robots={{
-    onSummarize: ({ assetId }) => fetchJson("/mux/robots/summarize", { assetId }),
-    onGenerateChapters: ({ assetId }) => fetchJson("/mux/robots/chapters", { assetId }),
-    onFindKeyMoments: ({ assetId }) => fetchJson("/mux/robots/key-moments", { assetId }),
+    onSummarize: ({ assetId }) =>
+      fetchJson("/mux/robots/summarize", { assetId }),
+    onGenerateChapters: ({ assetId }) =>
+      fetchJson("/mux/robots/chapters", { assetId }),
+    onFindKeyMoments: ({ assetId }) =>
+      fetchJson("/mux/robots/key-moments", { assetId }),
   }}
 />
 ```
