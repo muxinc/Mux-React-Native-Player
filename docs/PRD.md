@@ -155,7 +155,11 @@ release / autoplay presets is where naive RN video implementations fall apart.
 
 ## Tier 3 — Polish / credibility
 
-### 7. Accessibility pass `[ ]`
+### 7. Accessibility pass `[x]`
+
+> ⚠️ JS a11y (reduced motion, roles/labels, scrubber actions) is verifiable and tested.
+> Caption styling uses native APIs (AVTextStyleRule / SubtitleView) that are NOT
+> runtime-verified in the loop env.
 
 **Acceptance criteria:**
 - [ ] VoiceOver/TalkBack focus order through controls is logical and complete.
@@ -204,3 +208,9 @@ release / autoplay presets is where naive RN video implementations fall apart.
   controls show a LIVE badge (tap → live edge) and map the scrubber over the DVR window.
   iOS via AVFoundation seekable ranges, Android via media3 live APIs. 1 new test; JS
   typecheck + 31 tests pass. NATIVE live behavior UNVERIFIED (no live-stream device test).
+- 2026-06-11 — Item 7 (accessibility pass) completed. Reduced-motion handling
+  (AccessibilityInfo gates control fades); scrubber `accessibilityValue` +
+  increment/decrement actions; roles/labels/state audit across controls; `captionStyle`
+  prop (textColor/backgroundColor/fontScale) applied via native AVTextStyleRule /
+  SubtitleView; new `docs/accessibility.md`. JS typecheck + 31 tests pass; native caption
+  styling UNVERIFIED (no device build).

@@ -16,6 +16,7 @@ export type {
   MuxVideoFeedWindow,
 } from './useMuxVideoFeed';
 export type {
+  MuxCaptionStyle,
   MuxContentFit,
   MuxPosterSource,
   MuxVideoControls,

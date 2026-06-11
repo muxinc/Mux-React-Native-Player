@@ -65,6 +65,7 @@ type MuxVideoMetadata = {
 | `poster` | `boolean \| string \| { uri }` | auto | Poster before first frame. Omit/`true` = auto Mux thumbnail, `false` = none, string/`{uri}` = custom |
 | `posterTime` | `number` | — | Time (seconds) for the auto-generated poster frame |
 | `thumbnailPreviews` | `boolean` | `true` | Show storyboard thumbnail previews above the scrubber while dragging (custom controls) |
+| `captionStyle` | `{ textColor?, backgroundColor?, fontScale? }` | OS default | Style natively-rendered captions. See [Accessibility](accessibility.md) |
 | `settingsMenu` | `boolean \| { speed?, quality? }` | `true` | Gear menu for playback speed & quality. `false` hides it; `{ speed: false }` / `{ quality: false }` hides one section |
 | `allowsFullscreen` | `boolean` | `true` | Fullscreen button + rotate-to-fullscreen ([setup required](orientation-and-fullscreen.md)) |
 | `allowsAirPlay` | `boolean` | `true` | Show the AirPlay route button in the custom controls (iOS only) |

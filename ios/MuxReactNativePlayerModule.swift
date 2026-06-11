@@ -50,6 +50,10 @@ public final class MuxReactNativePlayerModule: Module {
         view.setEnableNowPlaying(enabled)
       }
 
+      Prop("captionStyle") { (view: MuxVideoView, style: MuxCaptionStyleRecord?) in
+        view.setCaptionStyle(style)
+      }
+
       Prop("timeUpdateEventInterval") { (view: MuxVideoView, interval: Double) in
         view.setTimeUpdateEventInterval(interval)
       }

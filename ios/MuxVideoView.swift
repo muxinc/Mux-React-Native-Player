@@ -29,6 +29,7 @@ final class MuxVideoView: ExpoView {
   private var statusObservation: NSKeyValueObservation?
   private var timeControlObservation: NSKeyValueObservation?
   private var externalPlaybackObservation: NSKeyValueObservation?
+  private var captionStyle: MuxCaptionStyleRecord?
   private var nowPlayingEnabled = false
   private var nowPlayingTitle: String?
   private var nowPlayingArtworkURL: URL?
@@ -334,6 +335,7 @@ final class MuxVideoView: ExpoView {
         ])
       }
       loadLegibleGroupIfNeeded(for: item)
+      applyCaptionStyle()
       if shouldPlay && playerViewController.player?.rate == 0 {
         startPlaybackIfPossible()
       }
@@ -561,6 +563,66 @@ final class MuxVideoView: ExpoView {
     }
 
     return "\(index)"
+  }
+
+  func setCaptionStyle(_ style: MuxCaptionStyleRecord?) {
+    captionStyle = style
+    applyCaptionStyle()
+  }
+
+  private func applyCaptionStyle() {
+    guard let item = playerViewController.player?.currentItem else {
+      return
+    }
+    guard let style = captionStyle else {
+      item.textStyleRules = nil
+      return
+    }
+    var attributes: [String: Any] = [:]
+    if let scale = style.fontScale, scale > 0 {
+      attributes[kCMTextMarkupAttribute_RelativeFontSize as String] = scale * 100
+    }
+    if let argb = style.textColor.flatMap(MuxVideoView.hexToARGB) {
+      attributes[kCMTextMarkupAttribute_ForegroundColorARGB as String] = argb
+    }
+    if let argb = style.backgroundColor.flatMap(MuxVideoView.hexToARGB) {
+      attributes[kCMTextMarkupAttribute_BackgroundColorARGB as String] = argb
+    }
+    if attributes.isEmpty {
+      item.textStyleRules = nil
+      return
+    }
+    if let rule = AVTextStyleRule(textMarkupAttributes: attributes) {
+      item.textStyleRules = [rule]
+    }
+  }
+
+  private static func hexToARGB(_ hex: String) -> [CGFloat]? {
+    var value = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+    if value.hasPrefix("#") {
+      value.removeFirst()
+    }
+    guard let parsed = UInt64(value, radix: 16) else {
+      return nil
+    }
+    switch value.count {
+    case 6:
+      return [
+        1,
+        CGFloat((parsed >> 16) & 0xff) / 255,
+        CGFloat((parsed >> 8) & 0xff) / 255,
+        CGFloat(parsed & 0xff) / 255,
+      ]
+    case 8:
+      return [
+        CGFloat((parsed >> 24) & 0xff) / 255,
+        CGFloat((parsed >> 16) & 0xff) / 255,
+        CGFloat((parsed >> 8) & 0xff) / 255,
+        CGFloat(parsed & 0xff) / 255,
+      ]
+    default:
+      return nil
+    }
   }
 
   private func captionTrackKind(_ option: AVMediaSelectionOption) -> String {

@@ -1,5 +1,6 @@
 import * as React from 'react';
 import {
+  AccessibilityInfo,
   Animated,
   Image,
   LayoutChangeEvent,
@@ -11,7 +12,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import type { ImageSourcePropType } from 'react-native';
+import type { AccessibilityActionEvent, ImageSourcePropType } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import type {
@@ -63,6 +64,10 @@ const emptyKeyMoments: MuxVideoKeyMoment[] = [];
 const emptyCaptionTracks: MuxVideoCaptionTrack[] = [];
 const SPEED_OPTIONS = [0.5, 1, 1.25, 1.5, 2] as const;
 const QUALITY_OPTIONS: MuxMaxResolution[] = ['720p', '1080p', '1440p', '2160p'];
+const SEEK_ACCESSIBILITY_ACTIONS = [
+  { name: 'increment', label: 'Skip forward' },
+  { name: 'decrement', label: 'Skip back' },
+];
 const robotImages = {
   summary: require('../assets/MuxRobot_03.gif'),
   chapters: require('../assets/MuxRobot_02.gif'),
@@ -130,6 +135,7 @@ export function MuxVideoControls({
   const robotsRequestRef = React.useRef(0);
   const controlsRootRef = React.useRef<View>(null);
   const opacity = React.useRef(new Animated.Value(1)).current;
+  const reduceMotion = useReducedMotion();
   const { width: windowWidth } = useWindowDimensions();
   const storyboard = useStoryboard(thumbnailPreviews ? source : undefined);
   const duration = Number.isFinite(status.duration) ? status.duration : 0;
@@ -296,23 +302,23 @@ export function MuxVideoControls({
   const fadeOut = React.useCallback(() => {
     Animated.timing(opacity, {
       toValue: 0,
-      duration: 200,
+      duration: reduceMotion ? 0 : 200,
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (finished) {
         setHidden(true);
       }
     });
-  }, [opacity]);
+  }, [opacity, reduceMotion]);
 
   const fadeIn = React.useCallback(() => {
     setHidden(false);
     Animated.timing(opacity, {
       toValue: 1,
-      duration: 200,
+      duration: reduceMotion ? 0 : 200,
       useNativeDriver: true,
     }).start();
-  }, [opacity]);
+  }, [opacity, reduceMotion]);
 
   const keepAlive = React.useCallback(() => {
     setInteractionTick(t => t + 1);
@@ -486,6 +492,17 @@ export function MuxVideoControls({
     keepAlive();
     runPlayerCommand(player.seekBy(seekSecondsRef.current));
   }, [keepAlive, player]);
+
+  const handleAccessibilitySeek = React.useCallback(
+    (event: AccessibilityActionEvent) => {
+      if (event.nativeEvent.actionName === 'increment') {
+        seekForward();
+      } else if (event.nativeEvent.actionName === 'decrement') {
+        seekBack();
+      }
+    },
+    [seekBack, seekForward]
+  );
 
   const togglePlayback = React.useCallback(() => {
     keepAlive();
@@ -912,8 +929,11 @@ export function MuxVideoControls({
               </View>
             ) : null}
             <View
-              accessibilityLabel="Seek video"
+              accessibilityActions={SEEK_ACCESSIBILITY_ACTIONS}
+              accessibilityLabel={isLive ? 'Seek live stream' : 'Seek video'}
               accessibilityRole="adjustable"
+              accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}
+              onAccessibilityAction={handleAccessibilitySeek}
               style={[
                 styles.trackHitArea,
                 {
@@ -1129,6 +1149,31 @@ export function MuxVideoControls({
 
 const PREVIEW_WIDTH = 132;
 const PREVIEW_FALLBACK_ASPECT = 16 / 9;
+
+function useReducedMotion(): boolean {
+  const [reduceMotion, setReduceMotion] = React.useState(false);
+  React.useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then(enabled => {
+        if (mounted) {
+          setReduceMotion(enabled);
+        }
+      })
+      .catch(() => {
+        // Reduced-motion preference is best-effort; default to animations on.
+      });
+    const subscription = AccessibilityInfo.addEventListener(
+      'reduceMotionChanged',
+      setReduceMotion
+    );
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+  return reduceMotion;
+}
 
 function useStoryboard(source?: NormalizedMuxVideoSource): ParsedStoryboard | null {
   const [storyboard, setStoryboard] = React.useState<ParsedStoryboard | null>(null);

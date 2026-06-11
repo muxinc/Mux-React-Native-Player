@@ -20,6 +20,17 @@ class MuxVideoClippingRecord : Record {
   var assetEndTime: Double? = null
 }
 
+class MuxCaptionStyleRecord : Record {
+  @Field
+  var textColor: String? = null
+
+  @Field
+  var backgroundColor: String? = null
+
+  @Field
+  var fontScale: Double? = null
+}
+
 class MuxVideoMetadataRecord : Record {
   @Field
   var envKey: String? = null

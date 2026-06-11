@@ -14,6 +14,17 @@ export type MuxVideoControls = 'native' | 'custom' | 'none';
  */
 export type MuxPosterSource = boolean | string | { uri: string };
 
+/**
+ * Styling for natively-rendered captions/subtitles. Colors are hex strings
+ * (`#RRGGBB` / `#AARRGGBB`); `fontScale` multiplies the default caption size.
+ * Omitted fields fall back to the OS caption-appearance settings.
+ */
+export type MuxCaptionStyle = {
+  textColor?: string;
+  backgroundColor?: string;
+  fontScale?: number;
+};
+
 export type MuxCustomData = Partial<Record<
   | 'customData1'
   | 'customData2'
@@ -207,6 +218,7 @@ export type MuxVideoViewProps = ViewProps & {
   poster?: MuxPosterSource;
   posterTime?: number;
   thumbnailPreviews?: boolean;
+  captionStyle?: MuxCaptionStyle;
   settingsMenu?: boolean | { speed?: boolean; quality?: boolean };
   allowsFullscreen?: boolean;
   allowsAirPlay?: boolean;

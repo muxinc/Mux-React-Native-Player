@@ -1,6 +1,7 @@
 package com.mux.reactnativeplayer
 
 import android.content.Context
+import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
 import android.view.LayoutInflater
@@ -16,8 +17,10 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaSession
 import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerNotificationManager
 import androidx.media3.ui.PlayerView
+import androidx.media3.ui.SubtitleView
 import com.mux.player.MuxPlayer
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.viewevent.EventDispatcher
@@ -192,6 +195,43 @@ class MuxVideoView(
 
   fun setNativeControls(enabled: Boolean) {
     playerView.useController = enabled
+  }
+
+  fun setCaptionStyle(style: MuxCaptionStyleRecord?) {
+    val subtitleView = playerView.subtitleView ?: return
+    if (style == null) {
+      subtitleView.setApplyEmbeddedStyles(true)
+      subtitleView.setUserDefaultStyle()
+      subtitleView.setUserDefaultTextSize()
+      return
+    }
+    subtitleView.setApplyEmbeddedStyles(false)
+    subtitleView.setStyle(
+      CaptionStyleCompat(
+        parseColor(style.textColor) ?: Color.WHITE,
+        parseColor(style.backgroundColor) ?: Color.TRANSPARENT,
+        Color.TRANSPARENT,
+        CaptionStyleCompat.EDGE_TYPE_NONE,
+        Color.WHITE,
+        null,
+      )
+    )
+    style.fontScale?.let { scale ->
+      subtitleView.setFractionalTextSize(
+        SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * scale.toFloat()
+      )
+    }
+  }
+
+  private fun parseColor(value: String?): Int? {
+    if (value.isNullOrBlank()) {
+      return null
+    }
+    return try {
+      Color.parseColor(value)
+    } catch (error: IllegalArgumentException) {
+      null
+    }
   }
 
   fun setContentFit(contentFit: String) {

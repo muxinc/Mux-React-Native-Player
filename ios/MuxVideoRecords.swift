@@ -8,6 +8,12 @@ struct MuxVideoClippingRecord: Record {
   @Field var assetEndTime: Double?
 }
 
+struct MuxCaptionStyleRecord: Record {
+  @Field var textColor: String?
+  @Field var backgroundColor: String?
+  @Field var fontScale: Double?
+}
+
 struct MuxVideoMetadataRecord: Record {
   @Field var envKey: String?
   @Field var playerName: String?
