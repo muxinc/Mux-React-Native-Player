@@ -22,8 +22,15 @@ import type {
   MuxVideoKeyMoment,
   MuxVideoRobotsConfig,
   MuxVideoSummary,
+  NormalizedMuxVideoSource,
 } from './types';
 import { MuxVideoPlayer } from './MuxVideoPlayer';
+import { buildMuxStoryboardVttUrl, buildMuxThumbnailUrl } from './muxImageUrls';
+import {
+  parseStoryboardVtt,
+  tileForTime,
+  type ParsedStoryboard,
+} from './storyboard';
 
 type RequiredControlsTheme = Required<MuxVideoControlsTheme>;
 type RobotsPanel = 'summary' | 'chapters' | 'moments';
@@ -32,6 +39,8 @@ type MuxVideoControlsProps = {
   player: MuxVideoPlayer;
   status: MuxPlayerStatus;
   shouldPlay: boolean;
+  source?: NormalizedMuxVideoSource;
+  thumbnailPreviews?: boolean;
   theme?: MuxVideoControlsTheme;
   robots?: MuxVideoRobotsConfig;
   allowsFullscreen?: boolean;
@@ -77,6 +86,8 @@ export function MuxVideoControls({
   player,
   status,
   shouldPlay,
+  source,
+  thumbnailPreviews = true,
   theme,
   robots,
   allowsFullscreen = false,
@@ -111,6 +122,7 @@ export function MuxVideoControls({
   const controlsRootRef = React.useRef<View>(null);
   const opacity = React.useRef(new Animated.Value(1)).current;
   const { width: windowWidth } = useWindowDimensions();
+  const storyboard = useStoryboard(thumbnailPreviews ? source : undefined);
   const duration = Number.isFinite(status.duration) ? status.duration : 0;
   const playerTime = clamp(status.currentTime, 0, duration || 0);
   const displayTime = scrubbing
@@ -792,6 +804,16 @@ export function MuxVideoControls({
               { left: timelineLeftInset, right: timelineRightInset },
             ]}
           >
+            {scrubbing && thumbnailPreviews && source ? (
+              <ScrubPreview
+                progress={progress}
+                source={source}
+                storyboard={storyboard}
+                time={displayTime}
+                trackPadding={trackHorizontalPadding}
+                trackWidth={trackWidth}
+              />
+            ) : null}
             {activeChapter ? (
               <View pointerEvents="none" style={styles.chapterPillRow}>
                 <View
@@ -961,6 +983,119 @@ export function MuxVideoControls({
           ) : null}
         </Animated.View>
       )}
+    </View>
+  );
+}
+
+const PREVIEW_WIDTH = 132;
+const PREVIEW_FALLBACK_ASPECT = 16 / 9;
+
+function useStoryboard(source?: NormalizedMuxVideoSource): ParsedStoryboard | null {
+  const [storyboard, setStoryboard] = React.useState<ParsedStoryboard | null>(null);
+  const playbackId = source?.playbackId;
+  const storyboardToken = source?.storyboardToken;
+  const customDomain = source?.customDomain;
+
+  React.useEffect(() => {
+    if (!playbackId) {
+      setStoryboard(null);
+      return;
+    }
+    let cancelled = false;
+    setStoryboard(null);
+    const url = buildMuxStoryboardVttUrl(
+      { playbackId, customDomain },
+      storyboardToken
+    );
+    fetch(url)
+      .then(response => (response.ok ? response.text() : null))
+      .then(text => {
+        if (cancelled || !text) {
+          return;
+        }
+        setStoryboard(parseStoryboardVtt(text, url));
+      })
+      .catch(() => {
+        // Storyboards are best-effort; scrubbing still works without previews.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [playbackId, storyboardToken, customDomain]);
+
+  return storyboard;
+}
+
+function ScrubPreview({
+  progress,
+  source,
+  storyboard,
+  time,
+  trackPadding,
+  trackWidth,
+}: {
+  progress: number;
+  source: NormalizedMuxVideoSource;
+  storyboard: ParsedStoryboard | null;
+  time: number;
+  trackPadding: number;
+  trackWidth: number;
+}) {
+  if (trackWidth <= 0) {
+    return null;
+  }
+
+  const tile = storyboard ? tileForTime(storyboard, time) : undefined;
+  const aspect =
+    tile && tile.height > 0 ? tile.width / tile.height : PREVIEW_FALLBACK_ASPECT;
+  const previewHeight = Math.round(PREVIEW_WIDTH / aspect);
+
+  const timelineWidth = trackWidth + trackPadding * 2;
+  const thumbCenter = trackPadding + clamp(progress, 0, 1) * trackWidth;
+  const left = clamp(thumbCenter - PREVIEW_WIDTH / 2, 0, Math.max(0, timelineWidth - PREVIEW_WIDTH));
+
+  let inner: React.ReactNode = null;
+  if (tile && storyboard && storyboard.spriteWidth > 0) {
+    const scale = PREVIEW_WIDTH / tile.width;
+    inner = (
+      <Image
+        source={{ uri: storyboard.spriteUrl }}
+        style={{
+          position: 'absolute',
+          width: storyboard.spriteWidth * scale,
+          height: storyboard.spriteHeight * scale,
+          left: -tile.x * scale,
+          top: -tile.y * scale,
+        }}
+      />
+    );
+  } else {
+    inner = (
+      <Image
+        source={{
+          uri: buildMuxThumbnailUrl(source, {
+            time: Math.floor(time),
+            width: PREVIEW_WIDTH * 2,
+            token: source.thumbnailToken,
+          }),
+        }}
+        style={StyleSheet.absoluteFill}
+      />
+    );
+  }
+
+  return (
+    <View
+      pointerEvents="none"
+      style={[
+        styles.scrubPreview,
+        { width: PREVIEW_WIDTH, height: previewHeight, left },
+      ]}
+    >
+      {inner}
+      <View pointerEvents="none" style={styles.scrubPreviewTimeRow}>
+        <Text style={styles.scrubPreviewTime}>{formatTime(time)}</Text>
+      </View>
     </View>
   );
 }
@@ -1599,6 +1734,30 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  scrubPreview: {
+    backgroundColor: '#000',
+    borderColor: frostBorderColor,
+    borderRadius: 10,
+    borderWidth: frostBorderWidth,
+    bottom: '100%',
+    marginBottom: 10,
+    overflow: 'hidden',
+    position: 'absolute',
+  },
+  scrubPreviewTimeRow: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    bottom: 0,
+    left: 0,
+    paddingVertical: 2,
+    position: 'absolute',
+    right: 0,
+  },
+  scrubPreviewTime: {
+    color: '#f8fbff',
+    fontSize: 11,
+    fontWeight: '800',
   },
   chapterPillRow: {
     alignItems: 'flex-start',

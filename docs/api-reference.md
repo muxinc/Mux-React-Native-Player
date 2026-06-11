@@ -62,6 +62,9 @@ type MuxVideoMetadata = {
 | `controlsTheme` | `MuxVideoControlsTheme` | — | Colors/sizing for the custom controls (below) |
 | `robots` | `MuxVideoRobotsConfig` | — | Enables Mux Robots buttons in custom controls — see [Mux Robots](robots.md) |
 | `contentFit` | `'contain' \| 'cover' \| 'fill'` | `'contain'` | How video fills the view |
+| `poster` | `boolean \| string \| { uri }` | auto | Poster before first frame. Omit/`true` = auto Mux thumbnail, `false` = none, string/`{uri}` = custom |
+| `posterTime` | `number` | — | Time (seconds) for the auto-generated poster frame |
+| `thumbnailPreviews` | `boolean` | `true` | Show storyboard thumbnail previews above the scrubber while dragging (custom controls) |
 | `allowsFullscreen` | `boolean` | `true` | Fullscreen button + rotate-to-fullscreen ([setup required](orientation-and-fullscreen.md)) |
 | `allowsPictureInPicture` | `boolean` | — | PiP support (also enable the plugin option) |
 | `timeUpdateEventInterval` | `number` | — | Seconds between `onTimeUpdate` events |
@@ -133,3 +136,42 @@ Available tracks arrive on `onSourceLoad` / `onStatusChange` as `captionTracks` 
 ```
 
 All fields are optional; omitted values fall back to the default dark theme.
+
+## Poster & scrubber thumbnail previews
+
+Mux generates a poster image and a storyboard sprite sheet for every asset, so
+these work with no extra backend setup.
+
+- **Poster** — before the first frame the player shows
+  `https://image.mux.com/{playbackId}/thumbnail.jpg`. Use `posterTime` to pick a
+  frame, `poster={false}` to disable, or `poster="https://…"` for a custom image.
+- **Scrubber previews** — while scrubbing with `controls="custom"`, a thumbnail of
+  the target time renders above the scrubber, sourced from the storyboard VTT
+  (`storyboard.vtt` + sprite sheet). Disable with `thumbnailPreviews={false}`. If
+  the storyboard is unavailable the player falls back to per-time thumbnails, and
+  if both fail it degrades silently (no preview, no error).
+
+### Signed playback
+
+For signed playback, pass the matching tokens on the source so image URLs are
+authorized:
+
+```ts
+{
+  playbackId: 'abc',
+  playbackToken: '…',   // video
+  thumbnailToken: '…',  // poster + fallback scrubber thumbnails
+  storyboardToken: '…', // storyboard sprite previews
+}
+```
+
+### Building image URLs yourself
+
+The URL helpers are exported if you need posters/thumbnails elsewhere:
+
+```ts
+import { buildMuxThumbnailUrl, buildMuxStoryboardVttUrl } from '@mux/mux-react-native-player';
+
+buildMuxThumbnailUrl({ playbackId: 'abc' }, { time: 30, width: 640 });
+buildMuxStoryboardVttUrl({ playbackId: 'abc' });
+```

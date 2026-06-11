@@ -1,11 +1,12 @@
 import * as React from 'react';
-import { Dimensions, Modal, Platform, StyleSheet, View } from 'react-native';
+import { Dimensions, Image, Modal, Platform, StyleSheet, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 
 const IOS_LANDSCAPE_SAFE_INSET = 50;
 
 import { MuxVideoPlayer } from './MuxVideoPlayer';
 import { MuxVideoControls } from './MuxVideoControls';
+import { buildMuxThumbnailUrl } from './muxImageUrls';
 import NativeMuxVideoView from './NativeMuxVideoView';
 import {
   lockOrientationLandscape,
@@ -45,6 +46,9 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
       robots,
       nativeControls = true,
       contentFit = 'contain',
+      poster,
+      posterTime,
+      thumbnailPreviews = true,
       allowsFullscreen = true,
       allowsPictureInPicture = false,
       timeUpdateEventInterval = 0.5,
@@ -204,6 +208,32 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
     const controlsMode = controls ?? (nativeControls ? 'native' : 'none');
     const showCustomControls = controlsMode === 'custom';
     const showNativeControls = controlsMode === 'native';
+
+    const posterUri = React.useMemo(() => {
+      if (poster === false) {
+        return undefined;
+      }
+      if (typeof poster === 'string') {
+        return poster;
+      }
+      if (poster && typeof poster === 'object') {
+        return poster.uri;
+      }
+      const src = snapshot.source;
+      if (!src) {
+        return undefined;
+      }
+      return buildMuxThumbnailUrl(src, {
+        time: posterTime,
+        token: src.thumbnailToken,
+      });
+    }, [poster, posterTime, snapshot.source]);
+
+    const playbackStatus = snapshot.status.status;
+    const showPoster =
+      posterUri != null &&
+      snapshot.status.currentTime <= 0 &&
+      (playbackStatus === 'idle' || playbackStatus === 'loading');
     const controlsRobots = React.useMemo(
       () =>
         robots && robots.assetId == null && snapshot.source?.assetId
@@ -274,6 +304,14 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
           nativeControls={false}
           style={StyleSheet.absoluteFill}
         />
+        {showPoster ? (
+          <Image
+            accessibilityIgnoresInvertColors
+            resizeMode={contentFit === 'cover' ? 'cover' : 'contain'}
+            source={{ uri: posterUri }}
+            style={[StyleSheet.absoluteFill, styles.poster]}
+          />
+        ) : null}
         {showCustomControls ? (
           <View
             pointerEvents="box-none"
@@ -289,6 +327,8 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
               player={player}
               status={snapshot.status}
               shouldPlay={snapshot.shouldPlay}
+              source={snapshot.source}
+              thumbnailPreviews={thumbnailPreviews}
               theme={controlsTheme}
               robots={controlsRobots}
               allowsFullscreen={allowsFullscreen}
@@ -407,6 +447,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   fullscreenCover: {
+    backgroundColor: '#000',
+  },
+  poster: {
     backgroundColor: '#000',
   },
 });

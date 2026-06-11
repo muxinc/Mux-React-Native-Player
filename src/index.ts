@@ -1,8 +1,17 @@
 export { createMuxVideoPlayer, MuxVideoPlayer } from './MuxVideoPlayer';
 export { MuxVideoView, useMuxVideoPlayer } from './MuxVideoView';
 export { muxResolutionSupport, normalizeMuxVideoSource } from './normalizeSource';
+export {
+  buildMuxStoryboardVttUrl,
+  buildMuxThumbnailUrl,
+  muxImageHost,
+} from './muxImageUrls';
+export type { MuxThumbnailFitMode, MuxThumbnailOptions } from './muxImageUrls';
+export { parseStoryboardVtt, tileForTime } from './storyboard';
+export type { ParsedStoryboard, StoryboardTile } from './storyboard';
 export type {
   MuxContentFit,
+  MuxPosterSource,
   MuxVideoControls,
   MuxVideoControlsTheme,
   MuxCustomData,

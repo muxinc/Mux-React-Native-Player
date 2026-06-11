@@ -25,7 +25,7 @@ Global constraints for every item:
 
 ## Tier 1 — High value, low-to-medium effort
 
-### 1. Scrubber thumbnail previews + automatic poster `[ ]`
+### 1. Scrubber thumbnail previews + automatic poster `[x]`
 
 **Why:** Mux generates storyboards and thumbnails for every asset for free. A preview
 frame above the scrubber and a real poster (instead of a black box) are marquee features
@@ -155,3 +155,6 @@ release / autoplay presets is where naive RN video implementations fall apart.
 ## Changelog (loop appends here)
 
 - 2026-06-11 — Item 0 (console.log cleanup) completed in `8037543`.
+- 2026-06-11 — Item 1 (scrubber thumbnail previews + auto poster) completed. New
+  `muxImageUrls.ts` / `storyboard.ts` modules, `poster`/`posterTime`/`thumbnailPreviews`
+  props, signed-playback tokens, exported URL helpers, 13 new tests.

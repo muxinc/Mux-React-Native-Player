@@ -6,6 +6,14 @@ export type MuxRenditionOrder = 'default' | 'desc';
 export type MuxContentFit = 'contain' | 'cover' | 'fill';
 export type MuxVideoControls = 'native' | 'custom' | 'none';
 
+/**
+ * Poster image shown before the first frame renders.
+ * - `undefined` / `true`: auto-generate from the Mux thumbnail endpoint
+ * - `false`: no poster
+ * - `string` / `{ uri }`: a custom poster image
+ */
+export type MuxPosterSource = boolean | string | { uri: string };
+
 export type MuxCustomData = Partial<Record<
   | 'customData1'
   | 'customData2'
@@ -41,6 +49,8 @@ export type MuxVideoSourceObject = {
   assetId?: string;
   playbackToken?: string;
   drmToken?: string;
+  thumbnailToken?: string;
+  storyboardToken?: string;
   customDomain?: string;
   minResolution?: MuxMinResolution;
   maxResolution?: MuxMaxResolution;
@@ -189,6 +199,9 @@ export type MuxVideoViewProps = ViewProps & {
   robots?: MuxVideoRobotsConfig;
   nativeControls?: boolean;
   contentFit?: MuxContentFit;
+  poster?: MuxPosterSource;
+  posterTime?: number;
+  thumbnailPreviews?: boolean;
   allowsFullscreen?: boolean;
   allowsPictureInPicture?: boolean;
   timeUpdateEventInterval?: number;
