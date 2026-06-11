@@ -18,6 +18,7 @@
   "files": [
     "android/build.gradle",
     "android/src",
+    "assets/*.gif",
     "build/**/*.{js,d.ts,d.ts.map}",
     "ios/*.{h,m,mm,swift}",
     "plugin",
