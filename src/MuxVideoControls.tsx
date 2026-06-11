@@ -1831,7 +1831,7 @@ function SkipIcon({
   size: number;
 }) {
   const arrowFontSize = Math.round(size * 0.66);
-  const numberFontSize = Math.round(size * 0.24);
+  const numberFontSize = Math.round(size * 0.19);
   return (
     <View
       pointerEvents="none"
