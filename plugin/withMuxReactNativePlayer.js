@@ -13,8 +13,6 @@ const pkg = require('../package.json');
 const MUX_MAVEN_URL = 'https://muxinc.jfrog.io/artifactory/default-maven-release-local';
 const MUX_MAVEN_LINE = `        maven { url = uri("${MUX_MAVEN_URL}") }\n`;
 const ANDROID_COMPILE_SDK = '36';
-const KOTLIN_VERSION = '2.2.10';
-const KSP_VERSION = '2.2.10-2.0.2';
 const MUX_IOS_EMBED_PHASE_NAME = '[Mux] Embed Mux Player Swift frameworks';
 
 function withMuxReactNativePlayer(config, props = {}) {
@@ -54,8 +52,11 @@ function withMuxReactNativePlayer(config, props = {}) {
   config = withGradleProperties(config, mod => {
     setGradleProperty(mod.modResults, 'android.compileSdkVersion', ANDROID_COMPILE_SDK);
     setGradleProperty(mod.modResults, 'android.suppressUnsupportedCompileSdk', ANDROID_COMPILE_SDK);
-    setGradleProperty(mod.modResults, 'kotlinVersion', KOTLIN_VERSION);
-    setGradleProperty(mod.modResults, 'kspVersion', KSP_VERSION);
+    // NOTE: we deliberately do NOT force kotlinVersion/kspVersion. Pinning the
+    // app-wide Kotlin version broke other libraries (e.g. react-native-gesture-handler,
+    // which relies on Kotlin synthetic-property access that newer Kotlin rejects).
+    // Mux Player ships as a precompiled AAR, so the host app's Expo-managed Kotlin
+    // version is sufficient.
     return mod;
   });
 
@@ -65,9 +66,7 @@ function withMuxReactNativePlayer(config, props = {}) {
   });
 
   config = withProjectBuildGradle(config, mod => {
-    mod.modResults.contents = addAndroidToolchainOverrides(
-      addMuxMavenToProjectBuildGradle(mod.modResults.contents)
-    );
+    mod.modResults.contents = addMuxMavenToProjectBuildGradle(mod.modResults.contents);
     return mod;
   });
 
@@ -187,24 +186,6 @@ allprojects {
 ${MUX_MAVEN_LINE}    }
 }
 `;
-}
-
-function addAndroidToolchainOverrides(contents) {
-  const marker = '// Added by @mux/mux-react-native-player';
-  let nextContents = contents.replace(
-    /classpath\(['"]org\.jetbrains\.kotlin:kotlin-gradle-plugin['"]\)/,
-    `classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${KOTLIN_VERSION}")`
-  );
-
-  if (nextContents.includes(marker)) {
-    return nextContents;
-  }
-
-  return `${marker}
-ext.kotlinVersion = '${KOTLIN_VERSION}'
-ext.kspVersion = '${KSP_VERSION}'
-
-${nextContents}`;
 }
 
 module.exports = createRunOncePlugin(withMuxReactNativePlayer, pkg.name, pkg.version);
