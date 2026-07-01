@@ -5,6 +5,7 @@ import {
   Image,
   LayoutChangeEvent,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -35,6 +36,7 @@ import {
   tileForTime,
   type ParsedStoryboard,
 } from './storyboard';
+import { truncateText } from './utils/truncateText';
 
 type RequiredControlsTheme = Required<MuxVideoControlsTheme>;
 type RobotsPanel = 'summary' | 'chapters' | 'moments' | 'transcript';
@@ -774,8 +776,8 @@ export function MuxVideoControls({
   );
 
   const defaultPanelMaxHeight = containerHeight > 0
-    ? Math.max(96, Math.min(168, Math.floor(containerHeight * 0.45)))
-    : 168;
+    ? Math.max(120, Math.min(176, Math.floor(containerHeight * 0.62)))
+    : 176;
   const summaryPanelMaxHeight = containerHeight > 0
     ? Math.max(140, Math.min(280, Math.floor(containerHeight * 0.65)))
     : 260;
@@ -783,9 +785,10 @@ export function MuxVideoControls({
     activeRobotsPanel === 'summary' || activeRobotsPanel === 'transcript'
       ? summaryPanelMaxHeight
       : defaultPanelMaxHeight;
-  // The settings panel is anchored above the bottom bar; cap it to the space
-  // left in the video view so its top doesn't get clipped on short (inline) layouts.
-  const settingsPanelMaxHeight =
+  // The settings and captions panels are anchored above the bottom bar; cap
+  // them to the space left in the video view so their tops don't get clipped
+  // on short (inline) layouts.
+  const anchoredPanelMaxHeight =
     containerHeight > 0 ? Math.max(96, Math.floor(containerHeight - 48)) : 280;
 
   return (
@@ -1138,6 +1141,7 @@ export function MuxVideoControls({
                     {captionsOpen ? (
                       <CaptionTracksPanel
                         backgroundColor={controlsTheme.buttonBackgroundColor}
+                        maxHeight={anchoredPanelMaxHeight}
                         onSelect={selectCaptionTrack}
                         selectedTrackId={selectedCaptionTrackId}
                         textColor={controlsTheme.textColor}
@@ -1173,7 +1177,7 @@ export function MuxVideoControls({
                         backgroundColor={controlsTheme.buttonBackgroundColor}
                         currentMaxResolution={source?.maxResolution}
                         currentRate={status.playbackRate}
-                        maxHeight={settingsPanelMaxHeight}
+                        maxHeight={anchoredPanelMaxHeight}
                         onSelectRate={selectPlaybackRate}
                         onSelectResolution={selectMaxResolution}
                         showQuality={showQualityControl}
@@ -1540,9 +1544,11 @@ function SummaryPanel({
       <Text numberOfLines={2} style={[styles.summaryTitle, { color: textColor }]}>
         {summary.title}
       </Text>
-      <Text numberOfLines={10} style={[styles.robotsPanelText, { color: textColor }]}>
-        {summary.description}
-      </Text>
+      <ScrollView showsVerticalScrollIndicator={false} style={styles.summaryScroll}>
+        <Text style={[styles.robotsPanelText, { color: textColor }]}>
+          {truncateText(summary.description, 400)}
+        </Text>
+      </ScrollView>
     </View>
   );
 }
@@ -1560,7 +1566,12 @@ function ChapterPanel({
     return <Text style={[styles.robotsPanelText, { color: textColor }]}>No chapters yet.</Text>;
   }
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.robotsScroll}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.robotsScrollContent}
+      style={styles.robotsScroll}
+    >
       {chapters.map(chapter => (
         <Pressable
           accessibilityLabel={`Seek to chapter ${chapter.title}`}
@@ -1594,7 +1605,12 @@ function KeyMomentsPanel({
     return <Text style={[styles.robotsPanelText, { color: textColor }]}>No key moments yet.</Text>;
   }
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.robotsScroll}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.robotsScrollContent}
+      style={styles.robotsScroll}
+    >
       {keyMoments.map(moment => (
         <Pressable
           accessibilityLabel={`Seek to key moment ${moment.title}`}
@@ -1610,7 +1626,7 @@ function KeyMomentsPanel({
             {moment.title}
           </Text>
           {moment.description ? (
-            <Text numberOfLines={2} style={[styles.robotsItemDescription, { color: textColor }]}>
+            <Text numberOfLines={1} style={[styles.robotsItemDescription, { color: textColor }]}>
               {moment.description}
             </Text>
           ) : null}
@@ -1740,36 +1756,44 @@ function SettingsChip({
 
 function CaptionTracksPanel({
   backgroundColor,
+  maxHeight,
   onSelect,
   selectedTrackId,
   textColor,
   tracks,
 }: {
   backgroundColor: string;
+  maxHeight: number;
   onSelect: (trackId: string | null) => void;
   selectedTrackId: string | null;
   textColor: string;
   tracks: MuxVideoCaptionTrack[];
 }) {
   return (
-    <View style={[styles.captionPanel, { backgroundColor }]}>
+    <View style={[styles.captionPanel, { backgroundColor, maxHeight }]}>
       <Text style={[styles.captionPanelTitle, { color: textColor }]}>Captions</Text>
-      <CaptionTrackOption
-        active={selectedTrackId === null}
-        label="Off"
-        onPress={() => onSelect(null)}
-        textColor={textColor}
-      />
-      {tracks.map(track => (
+      <ScrollView
+        bounces={false}
+        contentContainerStyle={styles.captionOptionList}
+        nestedScrollEnabled
+      >
         <CaptionTrackOption
-          active={selectedTrackId === track.id}
-          key={track.id}
-          label={track.label || track.language || 'Caption track'}
-          meta={track.language}
-          onPress={() => onSelect(track.id)}
+          active={selectedTrackId === null}
+          label="Off"
+          onPress={() => onSelect(null)}
           textColor={textColor}
         />
-      ))}
+        {tracks.map(track => (
+          <CaptionTrackOption
+            active={selectedTrackId === track.id}
+            key={track.id}
+            label={track.label || track.language || 'Caption track'}
+            meta={track.language}
+            onPress={() => onSelect(track.id)}
+            textColor={textColor}
+          />
+        ))}
+      </ScrollView>
     </View>
   );
 }
@@ -1855,6 +1879,11 @@ function SkipIcon({
 }) {
   const arrowFontSize = Math.round(size * 0.66);
   const numberFontSize = Math.round(size * 0.19);
+  // The number sits in the arrow's hollow centre. We centre it with flexbox
+  // (consistent across platforms) and apply a tiny platform-specific nudge to
+  // line up with the glyph's optical centre — iOS and Android differ in text
+  // baseline/padding, so a single nudge can't fit both.
+  const numberNudge = Platform.select({ ios: Math.round(size * 0.06), default: 0 });
   return (
     <View
       pointerEvents="none"
@@ -1874,28 +1903,26 @@ function SkipIcon({
       >
         {direction === 'back' ? '↺' : '↻'}
       </Text>
-      <Text
-        allowFontScaling={false}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          color,
-          fontSize: numberFontSize,
-          fontWeight: '800',
-          textAlign: 'center',
-          textAlignVertical: 'center',
-          lineHeight: size,
-          includeFontPadding: false,
-          // Nudge down a couple px: the arrow glyph's visual center sits below
-          // the line-box center, so this keeps the number inside the ring.
-          transform: [{ translateY: Math.round(size * 0.06) }],
-        }}
+      <View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill,
+          { alignItems: 'center', justifyContent: 'center', transform: [{ translateY: numberNudge }] },
+        ]}
       >
-        {seconds}
-      </Text>
+        <Text
+          allowFontScaling={false}
+          style={{
+            color,
+            fontSize: numberFontSize,
+            fontWeight: '800',
+            textAlign: 'center',
+            includeFontPadding: false,
+          }}
+        >
+          {seconds}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -2181,6 +2208,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     paddingHorizontal: 6,
   },
+  captionOptionList: {
+    gap: 6,
+  },
   captionOption: {
     backgroundColor: 'rgba(248, 251, 255, 0.08)',
     borderColor: 'transparent',
@@ -2328,6 +2358,7 @@ const styles = StyleSheet.create({
   robotsPanelTitle: {
     fontSize: 13,
     fontWeight: '800',
+    lineHeight: 16,
   },
   robotsPanelBody: {
     gap: 6,
@@ -2362,9 +2393,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   robotsScroll: {
-    maxHeight: 92,
+    flexGrow: 0,
+    maxHeight: 80,
+  },
+  robotsScrollContent: {
+    alignItems: 'stretch',
   },
   transcriptScroll: {
+    flexGrow: 0,
+  },
+  summaryScroll: {
     flexGrow: 0,
   },
   transcriptCue: {
@@ -2389,26 +2427,31 @@ const styles = StyleSheet.create({
     borderColor: frostBorderColor,
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
+    height: 78,
+    justifyContent: 'flex-start',
     marginRight: 8,
-    padding: 8,
+    overflow: 'hidden',
+    paddingHorizontal: 8,
+    paddingVertical: 7,
     width: 152,
   },
   robotsItemTime: {
     fontSize: 11,
     fontWeight: '800',
+    lineHeight: 14,
     marginBottom: 2,
     opacity: 0.78,
   },
   robotsItemTitle: {
     fontSize: 12,
     fontWeight: '800',
-    lineHeight: 16,
+    lineHeight: 15,
   },
   robotsItemDescription: {
     fontSize: 11,
     fontWeight: '600',
-    lineHeight: 14,
-    marginTop: 3,
+    lineHeight: 13,
+    marginTop: 2,
     opacity: 0.82,
   },
   settingsPanel: {
