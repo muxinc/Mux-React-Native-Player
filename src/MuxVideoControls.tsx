@@ -2361,6 +2361,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   robotsPanelBody: {
+    flexShrink: 1,
     gap: 6,
   },
   robotsPanelText: {
@@ -2401,9 +2402,11 @@ const styles = StyleSheet.create({
   },
   transcriptScroll: {
     flexGrow: 0,
+    flexShrink: 1,
   },
   summaryScroll: {
     flexGrow: 0,
+    flexShrink: 1,
   },
   transcriptCue: {
     flexDirection: 'row',

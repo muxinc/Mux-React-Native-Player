@@ -14,6 +14,7 @@ const MUX_MAVEN_URL = 'https://muxinc.jfrog.io/artifactory/default-maven-release
 const MUX_MAVEN_LINE = `        maven { url = uri("${MUX_MAVEN_URL}") }\n`;
 const ANDROID_COMPILE_SDK = '36';
 const MUX_IOS_EMBED_PHASE_NAME = '[Mux] Embed Mux Player Swift frameworks';
+const MUX_IOS_SIGNATURE_FIX_PHASE_NAME = '[Mux] Remove duplicate xcframework signatures';
 
 function withMuxReactNativePlayer(config, props = {}) {
   config = withInfoPlist(config, mod => {
@@ -31,6 +32,7 @@ function withMuxReactNativePlayer(config, props = {}) {
 
   config = withXcodeProject(config, mod => {
     addMuxIosEmbedFrameworksPhase(mod.modResults);
+    addMuxIosSignatureFixPhase(mod.modResults);
     return mod;
   });
 
@@ -91,6 +93,41 @@ function addMuxIosEmbedFrameworksPhase(project) {
     shellPath: '/bin/sh',
     shellScript: createMuxIosEmbedFrameworksScript(),
   });
+}
+
+// Xcode (15+) fails to archive when a signed binary xcframework consumed via
+// SPM (MuxCore, MUXSDKStats from mux-player-swift) is reachable through both
+// the static pod target and the app target: its code signature gets copied
+// into the archive's Signatures/ folder twice, and the second copy fails with
+// "MuxCore.xcframework-ios.signature couldn't be copied to Signatures because
+// an item with the same name already exists". Removing the staged .signature
+// folders from the intermediate build dir lets the archive step do the single
+// authoritative copy. Same approach as maplibre-react-native#1490.
+function addMuxIosSignatureFixPhase(project) {
+  const shellScriptPhases = project.hash.project.objects.PBXShellScriptBuildPhase || {};
+  const alreadyAdded = Object.values(shellScriptPhases).some(
+    phase => phase && phase.name === `"${MUX_IOS_SIGNATURE_FIX_PHASE_NAME}"`
+  );
+
+  if (alreadyAdded) {
+    return;
+  }
+
+  const appTargetUuid = getIosAppTargetUuid(project);
+
+  project.addBuildPhase(
+    [],
+    'PBXShellScriptBuildPhase',
+    MUX_IOS_SIGNATURE_FIX_PHASE_NAME,
+    appTargetUuid,
+    {
+      inputPaths: [],
+      outputPaths: [],
+      shellPath: '/bin/sh',
+      shellScript:
+        'rm -rf "$CONFIGURATION_BUILD_DIR"/MuxCore.xcframework-ios.signature "$CONFIGURATION_BUILD_DIR"/MUXSDKStats.xcframework-ios.signature',
+    }
+  );
 }
 
 function getIosAppTargetUuid(project) {
