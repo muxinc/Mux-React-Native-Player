@@ -36,7 +36,6 @@ import {
   tileForTime,
   type ParsedStoryboard,
 } from './storyboard';
-import { truncateText } from './utils/truncateText';
 
 type RequiredControlsTheme = Required<MuxVideoControlsTheme>;
 type RobotsPanel = 'summary' | 'chapters' | 'moments' | 'transcript';
@@ -1546,7 +1545,7 @@ function SummaryPanel({
       </Text>
       <ScrollView showsVerticalScrollIndicator={false} style={styles.summaryScroll}>
         <Text style={[styles.robotsPanelText, { color: textColor }]}>
-          {truncateText(summary.description, 400)}
+          {summary.description}
         </Text>
       </ScrollView>
     </View>
