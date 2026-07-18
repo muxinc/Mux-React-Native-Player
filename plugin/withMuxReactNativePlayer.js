@@ -27,6 +27,12 @@ function withMuxReactNativePlayer(config, props = {}) {
       mod.modResults.UIBackgroundModes = Array.from(modes);
     }
 
+    // AirPlay routes video (not just audio) only when the app declares the
+    // long-form video route-sharing policy.
+    if (!mod.modResults.AVInitialRouteSharingPolicy) {
+      mod.modResults.AVInitialRouteSharingPolicy = 'LongFormVideo';
+    }
+
     return mod;
   });
 

@@ -44,6 +44,9 @@ final class MuxVideoView: ExpoView {
     playerViewController.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     playerViewController.showsPlaybackControls = true
     playerViewController.videoGravity = .resizeAspect
+    if #available(iOS 16.0, *) {
+      playerViewController.allowsVideoFrameAnalysis = false
+    }
     addSubview(playerViewController.view)
   }
 
@@ -90,6 +93,8 @@ final class MuxVideoView: ExpoView {
     if nowPlayingEnabled {
       loadArtworkIfNeeded()
     }
+
+    configurePlaybackAudioSession()
 
     playerViewController.prepare(
       playbackID: source.playbackId,
@@ -394,6 +399,7 @@ final class MuxVideoView: ExpoView {
       return
     }
 
+    try? AVAudioSession.sharedInstance().setActive(true)
     player.automaticallyWaitsToMinimizeStalling = true
     player.currentItem?.preferredForwardBufferDuration = startupBufferDuration
     player.play()
@@ -657,9 +663,20 @@ final class MuxVideoView: ExpoView {
   }
 
   private func configureAudioSession() {
+    configurePlaybackAudioSession()
+    try? AVAudioSession.sharedInstance().setActive(true)
+  }
+
+  /// Without the .longFormVideo route-sharing policy (or with the default
+  /// .soloAmbient category), picking an AirPlay device routes audio only and
+  /// AVPlayer never engages external video playback.
+  private func configurePlaybackAudioSession() {
     let session = AVAudioSession.sharedInstance()
-    try? session.setCategory(.playback, mode: .moviePlayback)
-    try? session.setActive(true)
+    do {
+      try session.setCategory(.playback, mode: .moviePlayback, policy: .longFormVideo)
+    } catch {
+      try? session.setCategory(.playback, mode: .moviePlayback)
+    }
   }
 
   private func registerRemoteCommands() {

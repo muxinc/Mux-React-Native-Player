@@ -168,8 +168,11 @@ so routing also works from Control Center. When playback moves to an AirPlay dev
 `status.externalPlaybackActive` becomes `true` and the controls show a "Playing via
 AirPlay" indicator. AirPlay is Apple-only; the button does not render on Android.
 
-> Status: the AirPlay native view ships in this version but its on-device behavior has
-> not yet been validated by the maintainers — verify with a development build.
+The player configures the shared `AVAudioSession` with the `.longFormVideo`
+route-sharing policy when a source loads — required for AirPlay to carry the video
+stream rather than audio only. The config plugin also sets
+`AVInitialRouteSharingPolicy` to `LongFormVideo` in the app's Info.plist so routing
+behaves correctly from app launch (skipped if the app already sets the key).
 
 **Chromecast** is not yet included. It requires the Google Cast SDK (a large dependency)
 plus app-level `GCKCastContext` initialization, so it is tracked as a separate roadmap

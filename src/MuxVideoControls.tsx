@@ -307,6 +307,9 @@ export function MuxVideoControls({
     isCompactHeight ? 52 : isNarrowControls ? 56 : controlsTheme.playButtonSize
   );
   const centerVerticalGap = isCompactHeight ? 8 : isPortraitControls ? 14 : 20;
+  // Height of the robots button row: 18px robot image + 5px vertical padding
+  // and 1px border on each side, plus the row's own 1px vertical padding.
+  const robotsRowHeight = 32;
   const fullscreenButtonSize = Math.max(22, isNarrowControls ? 24 : controlsTheme.fullscreenButtonSize);
   const trackHeight = Math.max(3, controlsTheme.trackHeight);
 
@@ -832,7 +835,9 @@ export function MuxVideoControls({
               {
                 gap: centerVerticalGap,
                 left: offscreenLeftInset,
-                paddingBottom: hasRobotsActions ? 88 : 0,
+                // Counterweight the robots row above the cluster so the
+                // play/skip buttons land on the exact vertical middle.
+                paddingBottom: hasRobotsActions ? robotsRowHeight + centerVerticalGap : 0,
                 paddingHorizontal: centerHorizontalPadding,
                 right: offscreenRightInset,
               },

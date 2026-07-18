@@ -6,7 +6,7 @@
   "scripts": {
     "android": "expo run:android",
     "ios": "node scripts/run-ios.cjs",
-    "ios:build": "xcodebuild -workspace ios/MuxReactNativePlayer.xcworkspace -scheme MuxReactNativePlayerExample -configuration Debug -sdk iphonesimulator -destination generic/platform=iOS\\ Simulator -derivedDataPath build/DerivedData build CODE_SIGNING_ALLOWED=NO -quiet",
+    "ios:build": "xcodebuild -workspace ios/MuxReactNativePlayerExample.xcworkspace -scheme MuxReactNativePlayerExample -configuration Debug -sdk iphonesimulator -destination generic/platform=iOS\\ Simulator -derivedDataPath build/DerivedData build CODE_SIGNING_ALLOWED=NO -quiet",
     "ios:launch": "expo run:ios --binary build/DerivedData/Build/Products/Debug-iphonesimulator/MuxReactNativePlayerExample.app",
     "ios:metro": "expo start --clear --host localhost --port 8081",
     "ios:expo": "expo run:ios --scheme MuxReactNativePlayerExample",
