@@ -800,10 +800,23 @@ export function MuxVideoControls({
   const summaryPanelMaxHeight = containerHeight > 0
     ? Math.max(140, Math.min(280, Math.floor(containerHeight * 0.65)))
     : 260;
-  const panelMaxHeight =
+  // The robots button row is pinned near the top of the view; cap the panel
+  // to the space left below the row so its bottom edge stays visible instead
+  // of overflowing the video.
+  const robotsRowTopPadding = isCompactHeight ? 10 : 18;
+  const robotsPanelAvailableHeight =
+    containerHeight > 0
+      ? Math.max(
+          96,
+          Math.floor(containerHeight - (robotsRowTopPadding + robotsRowHeight + 6 + 10))
+        )
+      : 260;
+  const panelMaxHeight = Math.min(
     activeRobotsPanel === 'summary' || activeRobotsPanel === 'transcript'
       ? summaryPanelMaxHeight
-      : defaultPanelMaxHeight;
+      : defaultPanelMaxHeight,
+    robotsPanelAvailableHeight
+  );
   // The settings and captions panels are anchored above the bottom bar; cap
   // them to the space left in the video view so their tops don't get clipped
   // on short (inline) layouts.
@@ -852,79 +865,84 @@ export function MuxVideoControls({
               {
                 gap: centerVerticalGap,
                 left: offscreenLeftInset,
-                // Counterweight the robots row above the cluster so the
-                // play/skip buttons land on the exact vertical middle.
-                paddingBottom: hasRobotsActions ? robotsRowHeight + centerVerticalGap : 0,
                 paddingHorizontal: centerHorizontalPadding,
                 right: offscreenRightInset,
               },
             ]}
           >
             {hasRobotsActions ? (
-              <View style={styles.robotsArea}>
-                <ScrollView
-                  horizontal
-                  bounces={false}
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.robotsButtonRow}
-                  style={styles.robotsButtonScroller}
-                >
-                  {canSummarize ? (
-                    <RobotsActionButton
-                      active={activeRobotsPanel === 'summary'}
-                      backgroundColor={controlsTheme.buttonBackgroundColor}
-                      label="Summary"
-                      onPress={loadSummary}
-                      robotSource={robotImages.summary}
-                      textColor={controlsTheme.buttonTextColor}
+              <View
+                pointerEvents="box-none"
+                style={[
+                  styles.robotsDock,
+                  { paddingHorizontal: centerHorizontalPadding, top: robotsRowTopPadding },
+                ]}
+              >
+                <View style={styles.robotsArea}>
+                  <ScrollView
+                    horizontal
+                    bounces={false}
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.robotsButtonRow}
+                    style={styles.robotsButtonScroller}
+                  >
+                    {canSummarize ? (
+                      <RobotsActionButton
+                        active={activeRobotsPanel === 'summary'}
+                        backgroundColor={controlsTheme.buttonBackgroundColor}
+                        label="Summary"
+                        onPress={loadSummary}
+                        robotSource={robotImages.summary}
+                        textColor={controlsTheme.buttonTextColor}
+                      />
+                    ) : null}
+                    {canGenerateChapters ? (
+                      <RobotsActionButton
+                        active={activeRobotsPanel === 'chapters'}
+                        backgroundColor={controlsTheme.buttonBackgroundColor}
+                        label="Chapters"
+                        onPress={loadChapters}
+                        robotSource={robotImages.chapters}
+                        textColor={controlsTheme.buttonTextColor}
+                      />
+                    ) : null}
+                    {canFindKeyMoments ? (
+                      <RobotsActionButton
+                        active={activeRobotsPanel === 'moments'}
+                        backgroundColor={controlsTheme.buttonBackgroundColor}
+                        label="Moments"
+                        onPress={loadKeyMoments}
+                        robotSource={robotImages.moments}
+                        textColor={controlsTheme.buttonTextColor}
+                      />
+                    ) : null}
+                    {canTranscribe ? (
+                      <RobotsActionButton
+                        active={activeRobotsPanel === 'transcript'}
+                        backgroundColor={controlsTheme.buttonBackgroundColor}
+                        label="Transcript"
+                        onPress={loadTranscript}
+                        robotSource={robotImages.transcript}
+                        textColor={controlsTheme.buttonTextColor}
+                      />
+                    ) : null}
+                  </ScrollView>
+                  {activeRobotsPanel ? (
+                    <RobotsPanelView
+                      activePanel={activeRobotsPanel}
+                      backgroundColor={controlsTheme.panelBackgroundColor}
+                      chapters={visibleChapters}
+                      error={robotsError}
+                      keyMoments={visibleKeyMoments}
+                      loading={robotsLoading === activeRobotsPanel}
+                      maxHeight={panelMaxHeight}
+                      onSeek={seekToRobotsTime}
+                      summary={summary}
+                      textColor={controlsTheme.textColor}
+                      transcript={transcript}
                     />
                   ) : null}
-                  {canGenerateChapters ? (
-                    <RobotsActionButton
-                      active={activeRobotsPanel === 'chapters'}
-                      backgroundColor={controlsTheme.buttonBackgroundColor}
-                      label="Chapters"
-                      onPress={loadChapters}
-                      robotSource={robotImages.chapters}
-                      textColor={controlsTheme.buttonTextColor}
-                    />
-                  ) : null}
-                  {canFindKeyMoments ? (
-                    <RobotsActionButton
-                      active={activeRobotsPanel === 'moments'}
-                      backgroundColor={controlsTheme.buttonBackgroundColor}
-                      label="Moments"
-                      onPress={loadKeyMoments}
-                      robotSource={robotImages.moments}
-                      textColor={controlsTheme.buttonTextColor}
-                    />
-                  ) : null}
-                  {canTranscribe ? (
-                    <RobotsActionButton
-                      active={activeRobotsPanel === 'transcript'}
-                      backgroundColor={controlsTheme.buttonBackgroundColor}
-                      label="Transcript"
-                      onPress={loadTranscript}
-                      robotSource={robotImages.transcript}
-                      textColor={controlsTheme.buttonTextColor}
-                    />
-                  ) : null}
-                </ScrollView>
-                {activeRobotsPanel ? (
-                  <RobotsPanelView
-                    activePanel={activeRobotsPanel}
-                    backgroundColor={controlsTheme.panelBackgroundColor}
-                    chapters={visibleChapters}
-                    error={robotsError}
-                    keyMoments={visibleKeyMoments}
-                    loading={robotsLoading === activeRobotsPanel}
-                    maxHeight={panelMaxHeight}
-                    onSeek={seekToRobotsTime}
-                    summary={summary}
-                    textColor={controlsTheme.textColor}
-                    transcript={transcript}
-                  />
-                ) : null}
+                </View>
               </View>
             ) : null}
             {externalPlaybackActive ? (
@@ -2299,6 +2317,12 @@ const styles = StyleSheet.create({
   chapterPillText: {
     fontSize: 10,
     fontWeight: '700',
+  },
+  robotsDock: {
+    alignItems: 'center',
+    left: 0,
+    position: 'absolute',
+    right: 0,
   },
   robotsArea: {
     alignItems: 'center',
