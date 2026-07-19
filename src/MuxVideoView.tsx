@@ -326,18 +326,10 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
           />
         ) : null}
         {showCustomControls ? (
-          <View
-            pointerEvents="box-none"
-            style={{
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              left: controlsInset.left,
-              right: controlsInset.right,
-            }}
-          >
+          <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
             <MuxVideoControls
               player={player}
+              safeAreaInsets={controlsInset}
               status={snapshot.status}
               shouldPlay={snapshot.shouldPlay}
               source={snapshot.source}

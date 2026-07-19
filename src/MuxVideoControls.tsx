@@ -49,6 +49,11 @@ type MuxVideoControlsProps = {
   thumbnailPreviews?: boolean;
   settingsMenu?: boolean | { speed?: boolean; quality?: boolean };
   allowsAirPlay?: boolean;
+  /**
+   * Keeps interactive controls clear of display cutouts while the root view —
+   * and with it the tap-to-dismiss scrim and gradients — spans the full screen.
+   */
+  safeAreaInsets?: { left: number; right: number };
   theme?: MuxVideoControlsTheme;
   robots?: MuxVideoRobotsConfig;
   allowsFullscreen?: boolean;
@@ -109,6 +114,7 @@ export function MuxVideoControls({
   thumbnailPreviews = true,
   settingsMenu = true,
   allowsAirPlay = true,
+  safeAreaInsets,
   theme,
   robots,
   allowsFullscreen = false,
@@ -283,11 +289,13 @@ export function MuxVideoControls({
   }, [measureControlsRoot, windowWidth]);
 
   const viewportWidth = windowWidth > 0 ? windowWidth : containerWidth;
-  const offscreenLeftInset = Math.max(0, -containerPageX);
+  // Fold the safe-area insets into the offscreen ones: both push interactive
+  // controls inward while the scrim and gradients keep covering the full view.
+  const offscreenLeftInset = Math.max(0, -containerPageX) + (safeAreaInsets?.left ?? 0);
   const offscreenRightInset =
-    viewportWidth > 0 && containerWidth > 0
+    (viewportWidth > 0 && containerWidth > 0
       ? Math.max(0, containerPageX + containerWidth - viewportWidth)
-      : 0;
+      : 0) + (safeAreaInsets?.right ?? 0);
   const isPortraitControls =
     containerWidth > 0 && containerHeight > 0 && containerHeight / containerWidth > 1.25;
   const visibleControlsWidth =
