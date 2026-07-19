@@ -147,6 +147,7 @@ With `controls="custom"`, the CC button opens a panel with horizontally scrollin
     accentColor: '#fa50b5',
     backgroundColor: 'rgba(0,0,0,0.4)',
     buttonBackgroundColor: 'rgba(255,255,255,0.15)',
+    panelBackgroundColor: 'rgba(20,28,38,0.72)', // frosted menu backdrop (settings/CC/robots)
     buttonTextColor: '#ffffff',
     textColor: '#ffffff',
     progressTrackColor: '#fa50b5',

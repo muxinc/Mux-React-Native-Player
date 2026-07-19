@@ -85,6 +85,7 @@ const defaultTheme: RequiredControlsTheme = {
   accentColor: '#FA50B5',
   backgroundColor: 'transparent',
   buttonBackgroundColor: 'rgba(20, 28, 38, 0.28)',
+  panelBackgroundColor: 'rgba(20, 28, 38, 0.72)',
   buttonTextColor: '#f8fbff',
   buttonSize: 48,
   playButtonSize: 72,
@@ -912,7 +913,7 @@ export function MuxVideoControls({
                 {activeRobotsPanel ? (
                   <RobotsPanelView
                     activePanel={activeRobotsPanel}
-                    backgroundColor={controlsTheme.buttonBackgroundColor}
+                    backgroundColor={controlsTheme.panelBackgroundColor}
                     chapters={visibleChapters}
                     error={robotsError}
                     keyMoments={visibleKeyMoments}
@@ -1162,7 +1163,7 @@ export function MuxVideoControls({
                       <CaptionTracksPanel
                         accentColor={controlsTheme.accentColor}
                         audioTracks={audioTracks}
-                        backgroundColor={controlsTheme.buttonBackgroundColor}
+                        backgroundColor={controlsTheme.panelBackgroundColor}
                         captionTracks={captionTracks}
                         maxHeight={anchoredPanelMaxHeight}
                         onSelectAudioTrack={selectAudioTrack}
@@ -1200,7 +1201,7 @@ export function MuxVideoControls({
                     {settingsOpen ? (
                       <SettingsPanel
                         accentColor={controlsTheme.accentColor}
-                        backgroundColor={controlsTheme.buttonBackgroundColor}
+                        backgroundColor={controlsTheme.panelBackgroundColor}
                         currentMaxResolution={source?.maxResolution}
                         currentRate={status.playbackRate}
                         maxHeight={anchoredPanelMaxHeight}

@@ -222,6 +222,7 @@ export type MuxVideoControlsTheme = {
   accentColor?: string;
   backgroundColor?: string;
   buttonBackgroundColor?: string;
+  panelBackgroundColor?: string;
   buttonTextColor?: string;
   buttonSize?: number;
   playButtonSize?: number;
