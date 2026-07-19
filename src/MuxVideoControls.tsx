@@ -802,8 +802,13 @@ export function MuxVideoControls({
     : 260;
   // The robots button row is pinned near the top of the view; cap the panel
   // to the space left below the row so its bottom edge stays visible instead
-  // of overflowing the video.
-  const robotsRowTopPadding = isCompactHeight ? 10 : 18;
+  // of overflowing the video. Tall (9:16) layouts get a proportional offset —
+  // a fixed one hugs the top edge and strands the UI far from the content.
+  const robotsRowTopPadding = isPortraitControls
+    ? Math.min(140, Math.max(24, Math.floor(containerHeight * 0.16)))
+    : isCompactHeight
+      ? 10
+      : 18;
   const robotsPanelAvailableHeight =
     containerHeight > 0
       ? Math.max(
