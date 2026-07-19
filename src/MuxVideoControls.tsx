@@ -19,6 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import type {
   MuxMaxResolution,
   MuxPlayerStatus,
+  MuxVideoAudioTrack,
   MuxVideoCaptionTrack,
   MuxVideoChapter,
   MuxVideoControlsTheme,
@@ -66,6 +67,7 @@ type MuxVideoControlsProps = {
 const emptyChapters: MuxVideoChapter[] = [];
 const emptyKeyMoments: MuxVideoKeyMoment[] = [];
 const emptyCaptionTracks: MuxVideoCaptionTrack[] = [];
+const emptyAudioTracks: MuxVideoAudioTrack[] = [];
 const SPEED_OPTIONS = [0.5, 1, 1.25, 1.5, 2] as const;
 const QUALITY_OPTIONS: MuxMaxResolution[] = ['720p', '1080p', '1440p', '2160p'];
 const SEEK_ACCESSIBILITY_ACTIONS = [
@@ -187,6 +189,8 @@ export function MuxVideoControls({
   const transcript = generatedTranscript ?? robots?.transcript;
   const captionTracks = status.captionTracks ?? emptyCaptionTracks;
   const selectedCaptionTrackId = status.selectedCaptionTrackId ?? null;
+  const audioTracks = status.audioTracks ?? emptyAudioTracks;
+  const selectedAudioTrackId = status.selectedAudioTrackId ?? null;
   const canSummarize = robotsEnabled && (!!summary || (!!robotsAssetId && !!robots?.onSummarize));
   const canGenerateChapters = robotsEnabled && (chapters.length > 0 || (!!robotsAssetId && !!robots?.onGenerateChapters));
   const canFindKeyMoments = robotsEnabled && (keyMoments.length > 0 || (!!robotsAssetId && !!robots?.onFindKeyMoments));
@@ -196,6 +200,9 @@ export function MuxVideoControls({
   const hasRobotsActions = canSummarize || canGenerateChapters || canFindKeyMoments || canTranscribe;
   const isRobotsFocused = activeRobotsPanel !== null;
   const hasCaptionTracks = captionTracks.length > 0;
+  // A single audio track offers no alternative language, so hide the section.
+  const hasAudioTrackChoices = audioTracks.length > 1;
+  const showCaptionsButton = hasCaptionTracks || hasAudioTrackChoices;
   const showSpeedControl =
     settingsMenu === true || (typeof settingsMenu === 'object' && settingsMenu.speed !== false);
   const showQualityControl =
@@ -212,10 +219,10 @@ export function MuxVideoControls({
   }, [robotsAssetId]);
 
   React.useEffect(() => {
-    if (!hasCaptionTracks) {
+    if (!showCaptionsButton) {
       setCaptionsOpen(false);
     }
-  }, [hasCaptionTracks]);
+  }, [showCaptionsButton]);
 
   const visibleChapters = React.useMemo(
     () =>
@@ -769,9 +776,18 @@ export function MuxVideoControls({
   const selectCaptionTrack = React.useCallback(
     (trackId: string | null) => {
       keepAlive();
-      setCaptionsOpen(false);
       player.setCaptionTrack(trackId).catch(() => {
         // Caption selection failures are non-fatal and native status will correct UI state.
+      });
+    },
+    [keepAlive, player]
+  );
+
+  const selectAudioTrack = React.useCallback(
+    (trackId: string) => {
+      keepAlive();
+      player.setAudioTrack(trackId).catch(() => {
+        // Audio selection failures are non-fatal and native status will correct UI state.
       });
     },
     [keepAlive, player]
@@ -1140,16 +1156,22 @@ export function MuxVideoControls({
                 </View>
               )}
               <View style={styles.timeControls}>
-                {hasCaptionTracks ? (
+                {showCaptionsButton ? (
                   <View style={styles.captionControlWrap}>
                     {captionsOpen ? (
                       <CaptionTracksPanel
+                        accentColor={controlsTheme.accentColor}
+                        audioTracks={audioTracks}
                         backgroundColor={controlsTheme.buttonBackgroundColor}
+                        captionTracks={captionTracks}
                         maxHeight={anchoredPanelMaxHeight}
-                        onSelect={selectCaptionTrack}
-                        selectedTrackId={selectedCaptionTrackId}
+                        onSelectAudioTrack={selectAudioTrack}
+                        onSelectCaptionTrack={selectCaptionTrack}
+                        selectedAudioTrackId={selectedAudioTrackId}
+                        selectedCaptionTrackId={selectedCaptionTrackId}
+                        showAudio={hasAudioTrackChoices}
+                        showCaptions={hasCaptionTracks}
                         textColor={controlsTheme.textColor}
-                        tracks={captionTracks}
                       />
                     ) : null}
                     <IconButton
@@ -1759,83 +1781,92 @@ function SettingsChip({
 }
 
 function CaptionTracksPanel({
+  accentColor,
+  audioTracks,
   backgroundColor,
+  captionTracks,
   maxHeight,
-  onSelect,
-  selectedTrackId,
+  onSelectAudioTrack,
+  onSelectCaptionTrack,
+  selectedAudioTrackId,
+  selectedCaptionTrackId,
+  showAudio,
+  showCaptions,
   textColor,
-  tracks,
 }: {
+  accentColor: string;
+  audioTracks: MuxVideoAudioTrack[];
   backgroundColor: string;
+  captionTracks: MuxVideoCaptionTrack[];
   maxHeight: number;
-  onSelect: (trackId: string | null) => void;
-  selectedTrackId: string | null;
+  onSelectAudioTrack: (trackId: string) => void;
+  onSelectCaptionTrack: (trackId: string | null) => void;
+  selectedAudioTrackId: string | null;
+  selectedCaptionTrackId: string | null;
+  showAudio: boolean;
+  showCaptions: boolean;
   textColor: string;
-  tracks: MuxVideoCaptionTrack[];
 }) {
   return (
-    <View style={[styles.captionPanel, { backgroundColor, maxHeight }]}>
-      <Text style={[styles.captionPanelTitle, { color: textColor }]}>Captions</Text>
+    <View style={[styles.settingsPanel, { backgroundColor, maxHeight }]}>
       <ScrollView
         bounces={false}
-        contentContainerStyle={styles.captionOptionList}
-        nestedScrollEnabled
+        contentContainerStyle={styles.settingsScrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        <CaptionTrackOption
-          active={selectedTrackId === null}
-          label="Off"
-          onPress={() => onSelect(null)}
-          textColor={textColor}
-        />
-        {tracks.map(track => (
-          <CaptionTrackOption
-            active={selectedTrackId === track.id}
-            key={track.id}
-            label={track.label || track.language || 'Caption track'}
-            meta={track.language}
-            onPress={() => onSelect(track.id)}
-            textColor={textColor}
-          />
-        ))}
+        {showCaptions ? (
+          <View style={styles.settingsSection}>
+            <Text style={[styles.settingsTitle, { color: textColor }]}>Captions</Text>
+            <ScrollView
+              horizontal
+              bounces={false}
+              contentContainerStyle={styles.settingsOptionRow}
+              showsHorizontalScrollIndicator={false}
+            >
+              <SettingsChip
+                accentColor={accentColor}
+                active={selectedCaptionTrackId === null}
+                label="Off"
+                onPress={() => onSelectCaptionTrack(null)}
+                textColor={textColor}
+              />
+              {captionTracks.map(track => (
+                <SettingsChip
+                  accentColor={accentColor}
+                  active={selectedCaptionTrackId === track.id}
+                  key={track.id}
+                  label={track.label || track.language || 'Caption track'}
+                  onPress={() => onSelectCaptionTrack(track.id)}
+                  textColor={textColor}
+                />
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+        {showAudio ? (
+          <View style={styles.settingsSection}>
+            <Text style={[styles.settingsTitle, { color: textColor }]}>Audio</Text>
+            <ScrollView
+              horizontal
+              bounces={false}
+              contentContainerStyle={styles.settingsOptionRow}
+              showsHorizontalScrollIndicator={false}
+            >
+              {audioTracks.map(track => (
+                <SettingsChip
+                  accentColor={accentColor}
+                  active={selectedAudioTrackId === track.id}
+                  key={track.id}
+                  label={track.label || track.language || 'Audio track'}
+                  onPress={() => onSelectAudioTrack(track.id)}
+                  textColor={textColor}
+                />
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
       </ScrollView>
     </View>
-  );
-}
-
-function CaptionTrackOption({
-  active,
-  label,
-  meta,
-  onPress,
-  textColor,
-}: {
-  active: boolean;
-  label: string;
-  meta?: string;
-  onPress: () => void;
-  textColor: string;
-}) {
-  return (
-    <Pressable
-      accessibilityLabel={`Select captions ${label}`}
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.captionOption,
-        active && styles.captionOptionActive,
-        pressed && styles.pressed,
-      ]}
-    >
-      <Text numberOfLines={1} style={[styles.captionOptionText, { color: textColor }]}>
-        {label}
-      </Text>
-      {meta ? (
-        <Text numberOfLines={1} style={[styles.captionOptionMeta, { color: textColor }]}>
-          {meta}
-        </Text>
-      ) : null}
-    </Pressable>
   );
 }
 
@@ -2195,47 +2226,6 @@ const styles = StyleSheet.create({
   },
   captionControlWrap: {
     position: 'relative',
-  },
-  captionPanel: {
-    borderColor: frostBorderColor,
-    borderRadius: 14,
-    borderWidth: frostBorderWidth,
-    bottom: 34,
-    gap: 6,
-    minWidth: 176,
-    padding: 8,
-    position: 'absolute',
-    right: 0,
-  },
-  captionPanelTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    paddingHorizontal: 6,
-  },
-  captionOptionList: {
-    gap: 6,
-  },
-  captionOption: {
-    backgroundColor: 'rgba(248, 251, 255, 0.08)',
-    borderColor: 'transparent',
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 8,
-    paddingVertical: 7,
-  },
-  captionOptionActive: {
-    borderColor: frostBorderColor,
-    backgroundColor: 'rgba(248, 251, 255, 0.16)',
-  },
-  captionOptionText: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  captionOptionMeta: {
-    fontSize: 10,
-    fontWeight: '700',
-    marginTop: 1,
-    opacity: 0.72,
   },
   timePill: {
     borderColor: frostBorderColor,

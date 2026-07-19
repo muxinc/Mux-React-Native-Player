@@ -36,6 +36,8 @@ const idleStatus: MuxPlayerStatus = {
   playbackRate: 1,
   captionTracks: [],
   selectedCaptionTrackId: null,
+  audioTracks: [],
+  selectedAudioTrackId: null,
   externalPlaybackActive: false,
   isLive: false,
   seekableStart: 0,
@@ -164,6 +166,16 @@ export class MuxVideoPlayer {
     return this.runNativeCommand('setCaptionTrack', trackId);
   }
 
+  setAudioTrack(trackId: string | null): Promise<void> {
+    this.statusState = {
+      ...this.statusState,
+      selectedAudioTrackId: trackId,
+    };
+    this.updateSnapshot();
+    this.emitChange();
+    return this.runNativeCommand('setAudioTrack', trackId);
+  }
+
   get maxResolution(): MuxMaxResolution | undefined {
     return this.source?.maxResolution;
   }
@@ -234,9 +246,14 @@ export class MuxVideoPlayer {
     this.statusState = {
       ...event,
       captionTracks: event.captionTracks ?? this.statusState.captionTracks ?? [],
-      selectedCaptionTrackId: normalizeCaptionTrackId(
+      selectedCaptionTrackId: normalizeTrackId(
         event.selectedCaptionTrackId,
         this.statusState.selectedCaptionTrackId ?? null
+      ),
+      audioTracks: event.audioTracks ?? this.statusState.audioTracks ?? [],
+      selectedAudioTrackId: normalizeTrackId(
+        event.selectedAudioTrackId,
+        this.statusState.selectedAudioTrackId ?? null
       ),
       externalPlaybackActive:
         event.externalPlaybackActive ?? this.statusState.externalPlaybackActive ?? false,
@@ -276,9 +293,14 @@ export class MuxVideoPlayer {
       status: this.statusState.status === 'loading' ? 'ready' : this.statusState.status,
       duration: event.duration,
       captionTracks: event.captionTracks ?? this.statusState.captionTracks ?? [],
-      selectedCaptionTrackId: normalizeCaptionTrackId(
+      selectedCaptionTrackId: normalizeTrackId(
         event.selectedCaptionTrackId,
         this.statusState.selectedCaptionTrackId ?? null
+      ),
+      audioTracks: event.audioTracks ?? this.statusState.audioTracks ?? [],
+      selectedAudioTrackId: normalizeTrackId(
+        event.selectedAudioTrackId,
+        this.statusState.selectedAudioTrackId ?? null
       ),
       error: undefined,
     };
@@ -374,7 +396,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function normalizeCaptionTrackId(
+function normalizeTrackId(
   trackId: string | null | undefined,
   fallback: string | null
 ): string | null {

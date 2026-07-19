@@ -103,6 +103,7 @@ await player.setLoop(true);
 await player.setPlaybackRate(1.25); // 0.25–4
 player.setMaxResolution('720p');  // cap quality; undefined = Auto. Reloads + resumes
 await player.setCaptionTrack(trackId); // or null to disable
+await player.setAudioTrack(trackId);   // dubbed audio; null = automatic selection
 player.replace({ playbackId: 'NEW_ID' }); // swap source, keeps settings
 await player.release();           // tear down native playback
 ```
@@ -130,9 +131,11 @@ Programmatically: `player.seekToLiveEdge()` (no-op for VOD) and the `player.isLi
 > Status: live/DVR handling ships in this version but its on-device behavior has not yet
 > been validated by the maintainers — verify with a real live stream + device build.
 
-## Captions
+## Captions & audio tracks
 
-Available tracks arrive on `onSourceLoad` / `onStatusChange` as `captionTracks` (`{ id, label, language?, kind? }`). Select with `player.setCaptionTrack(id)`, disable with `null`. The custom controls include a captions menu automatically when tracks exist.
+Available tracks arrive on `onSourceLoad` / `onStatusChange` as `captionTracks` (`{ id, label, language?, kind? }`) and `audioTracks` (`{ id, label, language? }`). Select with `player.setCaptionTrack(id)` (disable with `null`) and `player.setAudioTrack(id)` (`null` restores automatic selection). The currently selected tracks are reported as `selectedCaptionTrackId` / `selectedAudioTrackId` on the status.
+
+With `controls="custom"`, the CC button opens a panel with horizontally scrolling language chips — a **Captions** row (Off + one chip per track) and, when the asset has more than one audio track, an **Audio** row for dubbed audio.
 
 ## Custom controls theming
 

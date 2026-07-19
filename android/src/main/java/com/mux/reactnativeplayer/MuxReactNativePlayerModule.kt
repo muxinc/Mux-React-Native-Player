@@ -134,6 +134,10 @@ class MuxReactNativePlayerModule : Module() {
         view.setCaptionTrack(trackId)
       }
 
+      AsyncFunction("setAudioTrack") { view: MuxVideoView, trackId: String? ->
+        view.setAudioTrack(trackId)
+      }
+
       AsyncFunction("release") { view: MuxVideoView ->
         view.release()
       }

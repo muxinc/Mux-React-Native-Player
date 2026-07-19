@@ -62,7 +62,7 @@ class MuxVideoView(
   private var mediaSession: MediaSession? = null
   private var notificationManager: PlayerNotificationManager? = null
 
-  private data class TextTrackSelection(
+  private data class TrackSelection(
     val id: String,
     val trackGroup: TrackGroup,
     val trackIndex: Int,
@@ -85,6 +85,8 @@ class MuxVideoView(
             "duration" to durationSeconds(),
             "captionTracks" to captionTracksPayload(),
             "selectedCaptionTrackId" to selectedCaptionTrackId().orEmpty(),
+            "audioTracks" to audioTracksPayload(),
+            "selectedAudioTrackId" to selectedAudioTrackId().orEmpty(),
           )
         )
       }
@@ -302,9 +304,30 @@ class MuxVideoView(
       return
     }
 
-    val selection = findTextTrack(trackId) ?: return
+    val selection = findTrack(trackId, C.TRACK_TYPE_TEXT) ?: return
     currentPlayer.trackSelectionParameters = builder
       .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+      .setOverrideForType(
+        TrackSelectionOverride(selection.trackGroup, listOf(selection.trackIndex))
+      )
+      .build()
+    sendStatusChange()
+  }
+
+  fun setAudioTrack(trackId: String?) {
+    val currentPlayer = player ?: return
+    val builder = currentPlayer.trackSelectionParameters.buildUpon()
+
+    if (trackId == null) {
+      currentPlayer.trackSelectionParameters = builder
+        .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+        .build()
+      sendStatusChange()
+      return
+    }
+
+    val selection = findTrack(trackId, C.TRACK_TYPE_AUDIO) ?: return
+    currentPlayer.trackSelectionParameters = builder
       .setOverrideForType(
         TrackSelectionOverride(selection.trackGroup, listOf(selection.trackIndex))
       )
@@ -436,6 +459,8 @@ class MuxVideoView(
       "playbackRate" to playbackRate.toDouble(),
       "captionTracks" to captionTracksPayload(),
       "selectedCaptionTrackId" to selectedCaptionTrackId().orEmpty(),
+      "audioTracks" to audioTracksPayload(),
+      "selectedAudioTrackId" to selectedAudioTrackId().orEmpty(),
       // AirPlay is iOS-only; Android has no external-playback equivalent here.
       "externalPlaybackActive" to false,
       "isLive" to (player?.isCurrentMediaItemLive ?: false),
@@ -533,17 +558,72 @@ class MuxVideoView(
     return null
   }
 
-  private fun findTextTrack(trackId: String): TextTrackSelection? {
+  private fun findTrack(trackId: String, trackType: Int): TrackSelection? {
     val currentPlayer = player ?: return null
 
     currentPlayer.currentTracks.groups.forEachIndexed { groupIndex, group ->
-      if (group.type != C.TRACK_TYPE_TEXT) {
+      if (group.type != trackType) {
         return@forEachIndexed
       }
 
       for (trackIndex in 0 until group.length) {
         if ("$groupIndex:$trackIndex" == trackId && group.isTrackSupported(trackIndex)) {
-          return TextTrackSelection(trackId, group.mediaTrackGroup, trackIndex)
+          return TrackSelection(trackId, group.mediaTrackGroup, trackIndex)
+        }
+      }
+    }
+
+    return null
+  }
+
+  private fun audioTracksPayload(): List<Map<String, Any>> {
+    val currentPlayer = player ?: return emptyList()
+    val tracks = mutableListOf<Map<String, Any>>()
+    var fallbackIndex = 1
+
+    currentPlayer.currentTracks.groups.forEachIndexed { groupIndex, group ->
+      if (group.type != C.TRACK_TYPE_AUDIO) {
+        return@forEachIndexed
+      }
+
+      for (trackIndex in 0 until group.length) {
+        if (!group.isTrackSupported(trackIndex)) {
+          continue
+        }
+
+        val format = group.getTrackFormat(trackIndex)
+        val language = format.language
+        val label = format.label
+          ?.takeIf { it.isNotBlank() }
+          ?: language?.takeIf { it.isNotBlank() }
+          ?: "Audio ${fallbackIndex++}"
+        val payload = mutableMapOf<String, Any>(
+          "id" to "$groupIndex:$trackIndex",
+          "label" to label,
+        )
+
+        language?.takeIf { it.isNotBlank() }?.let {
+          payload["language"] = it
+        }
+
+        tracks.add(payload)
+      }
+    }
+
+    return tracks
+  }
+
+  private fun selectedAudioTrackId(): String? {
+    val currentPlayer = player ?: return null
+
+    currentPlayer.currentTracks.groups.forEachIndexed { groupIndex, group ->
+      if (group.type != C.TRACK_TYPE_AUDIO) {
+        return@forEachIndexed
+      }
+
+      for (trackIndex in 0 until group.length) {
+        if (group.isTrackSelected(trackIndex)) {
+          return "$groupIndex:$trackIndex"
         }
       }
     }

@@ -203,6 +203,31 @@ final class MuxVideoView: ExpoView {
     sendStatusChange()
   }
 
+  func setAudioTrack(_ trackId: String?) {
+    guard
+      let item = playerViewController.player?.currentItem,
+      let group = item.asset.mediaSelectionGroup(forMediaCharacteristic: .audible)
+    else {
+      return
+    }
+
+    guard let trackId else {
+      item.selectMediaOptionAutomatically(in: group)
+      sendStatusChange()
+      return
+    }
+
+    guard
+      let index = Int(trackId),
+      group.options.indices.contains(index)
+    else {
+      return
+    }
+
+    item.select(group.options[index], in: group)
+    sendStatusChange()
+  }
+
   func play() {
     shouldPlay = true
     didReachEnd = false
@@ -337,6 +362,8 @@ final class MuxVideoView: ExpoView {
           "duration": durationSeconds(),
           "captionTracks": captionTracksPayload(),
           "selectedCaptionTrackId": selectedCaptionTrackId() ?? NSNull(),
+          "audioTracks": audioTracksPayload(),
+          "selectedAudioTrackId": selectedAudioTrackId() ?? NSNull(),
         ])
       }
       loadLegibleGroupIfNeeded(for: item)
@@ -454,6 +481,8 @@ final class MuxVideoView: ExpoView {
       "playbackRate": Double(playbackRate),
       "captionTracks": captionTracksPayload(),
       "selectedCaptionTrackId": selectedCaptionTrackId() ?? NSNull(),
+      "audioTracks": audioTracksPayload(),
+      "selectedAudioTrackId": selectedAudioTrackId() ?? NSNull(),
       "externalPlaybackActive": playerViewController.player?.isExternalPlaybackActive ?? false,
       "isLive": isLiveStream(),
       "seekableStart": seekableRange().start,
@@ -562,6 +591,41 @@ final class MuxVideoView: ExpoView {
     guard
       let item = playerViewController.player?.currentItem,
       let group = item.asset.mediaSelectionGroup(forMediaCharacteristic: .legible),
+      let selected = item.currentMediaSelection.selectedMediaOption(in: group),
+      let index = group.options.firstIndex(where: { $0 === selected })
+    else {
+      return nil
+    }
+
+    return "\(index)"
+  }
+
+  private func audioTracksPayload() -> [[String: Any]] {
+    guard
+      let item = playerViewController.player?.currentItem,
+      let group = item.asset.mediaSelectionGroup(forMediaCharacteristic: .audible)
+    else {
+      return []
+    }
+
+    return group.options.enumerated().map { index, option in
+      var payload: [String: Any] = [
+        "id": "\(index)",
+        "label": option.displayName,
+      ]
+
+      if let language = option.extendedLanguageTag ?? option.locale?.identifier {
+        payload["language"] = language
+      }
+
+      return payload
+    }
+  }
+
+  private func selectedAudioTrackId() -> String? {
+    guard
+      let item = playerViewController.player?.currentItem,
+      let group = item.asset.mediaSelectionGroup(forMediaCharacteristic: .audible),
       let selected = item.currentMediaSelection.selectedMediaOption(in: group),
       let index = group.options.firstIndex(where: { $0 === selected })
     else {

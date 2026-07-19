@@ -33,6 +33,7 @@ export type {
   MuxSourceLoadEvent,
   MuxStatusChangeEvent,
   MuxTimeUpdateEvent,
+  MuxVideoAudioTrack,
   MuxVideoChapter,
   MuxVideoCaptionTrack,
   MuxVideoClipping,

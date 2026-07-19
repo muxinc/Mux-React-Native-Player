@@ -34,6 +34,7 @@ export type MuxVideoViewRef = {
   setLoop: (loop: boolean) => Promise<void>;
   setPlaybackRate: (rate: number) => Promise<void>;
   setCaptionTrack: (trackId: string | null) => Promise<void>;
+  setAudioTrack: (trackId: string | null) => Promise<void>;
   release: () => Promise<void>;
   enterFullscreen: () => void;
   exitFullscreen: () => void;
@@ -183,6 +184,7 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
         setLoop: loop => player.setLoop(loop),
         setPlaybackRate: rate => player.setPlaybackRate(rate),
         setCaptionTrack: trackId => player.setCaptionTrack(trackId),
+        setAudioTrack: trackId => player.setAudioTrack(trackId),
         release: () => player.release(),
         enterFullscreen,
         exitFullscreen,

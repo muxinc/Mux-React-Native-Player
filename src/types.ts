@@ -98,6 +98,8 @@ export type MuxPlayerStatus = {
   playbackRate: number;
   captionTracks?: MuxVideoCaptionTrack[];
   selectedCaptionTrackId?: string | null;
+  audioTracks?: MuxVideoAudioTrack[];
+  selectedAudioTrackId?: string | null;
   externalPlaybackActive?: boolean;
   isLive?: boolean;
   seekableStart?: number;
@@ -177,6 +179,8 @@ export type MuxSourceLoadEvent = {
   duration: number;
   captionTracks?: MuxVideoCaptionTrack[];
   selectedCaptionTrackId?: string | null;
+  audioTracks?: MuxVideoAudioTrack[];
+  selectedAudioTrackId?: string | null;
 };
 
 export type MuxSourceErrorEvent = {
@@ -197,6 +201,7 @@ export type MuxNativeViewRef = {
   setLoop: (loop: boolean) => Promise<void>;
   setPlaybackRate: (rate: number) => Promise<void>;
   setCaptionTrack: (trackId: string | null) => Promise<void>;
+  setAudioTrack: (trackId: string | null) => Promise<void>;
   release: () => Promise<void>;
 };
 
@@ -205,6 +210,12 @@ export type MuxVideoCaptionTrack = {
   label: string;
   language?: string;
   kind?: 'subtitles' | 'captions' | 'forced' | string;
+};
+
+export type MuxVideoAudioTrack = {
+  id: string;
+  label: string;
+  language?: string;
 };
 
 export type MuxVideoControlsTheme = {
