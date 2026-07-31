@@ -311,6 +311,12 @@ export function MuxVideoControls({
     visibleControlsWidth > 0 && visibleControlsWidth < 340 ? 10 : isPortraitControls ? 12 : 16;
   const timelineLeftInset = baseHorizontalInset + offscreenLeftInset;
   const timelineRightInset = baseHorizontalInset + offscreenRightInset;
+  // Keep the bottom controls above an app-level tab bar in tall, feed-style
+  // layouts. Scale the inset slightly with the viewport while keeping it in
+  // the range of common iOS and Android tab bars.
+  const timelineBottomInset = isPortraitControls
+    ? Math.min(96, Math.max(72, Math.floor(containerHeight * 0.1)))
+    : 6;
   const centerHorizontalPadding = isNarrowControls ? 10 : 16;
   const centerHorizontalGap = isNarrowControls ? 18 : 28;
   const trackHorizontalPadding = isNarrowControls ? 8 : 10;
@@ -1022,7 +1028,11 @@ export function MuxVideoControls({
             pointerEvents="box-none"
             style={[
               styles.timeline,
-              { left: timelineLeftInset, right: timelineRightInset },
+              {
+                bottom: timelineBottomInset,
+                left: timelineLeftInset,
+                right: timelineRightInset,
+              },
             ]}
           >
             {scrubbing && thumbnailPreviews && source ? (
