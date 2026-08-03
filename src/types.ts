@@ -189,6 +189,16 @@ export type MuxSourceErrorEvent = {
   code?: string;
 };
 
+/**
+ * Fired once per source, the moment the first video frame is ready on screen
+ * (ExoPlayer `onRenderedFirstFrame` on Android; `AVPlayerViewController.isReadyForDisplay`
+ * on iOS). This is the exact signal for hiding a poster/thumbnail overlay —
+ * unlike time updates, it is event-driven and carries no polling latency.
+ */
+export type MuxFirstFrameEvent = {
+  playbackId?: string;
+};
+
 export type MuxNativeViewRef = {
   play: () => Promise<void>;
   pause: () => Promise<void>;
@@ -258,6 +268,7 @@ export type MuxVideoViewProps = ViewProps & {
   onTimeUpdate?: (event: MuxTimeUpdateEvent) => void;
   onSourceLoad?: (event: MuxSourceLoadEvent) => void;
   onSourceError?: (event: MuxSourceErrorEvent) => void;
+  onFirstFrame?: (event: MuxFirstFrameEvent) => void;
   onFullscreenChange?: (isFullscreen: boolean) => void;
 };
 
@@ -272,6 +283,7 @@ export type NativeMuxVideoViewProps = Omit<
   | 'onTimeUpdate'
   | 'onSourceLoad'
   | 'onSourceError'
+  | 'onFirstFrame'
   | 'onFullscreenChange'
 > & {
   source?: NormalizedMuxVideoSource;
@@ -285,4 +297,5 @@ export type NativeMuxVideoViewProps = Omit<
   onTimeUpdate?: (event: NativeSyntheticEvent<MuxTimeUpdateEvent>) => void;
   onSourceLoad?: (event: NativeSyntheticEvent<MuxSourceLoadEvent>) => void;
   onSourceError?: (event: NativeSyntheticEvent<MuxSourceErrorEvent>) => void;
+  onFirstFrame?: (event: NativeSyntheticEvent<MuxFirstFrameEvent>) => void;
 };

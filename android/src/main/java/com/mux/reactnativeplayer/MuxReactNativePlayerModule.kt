@@ -44,7 +44,8 @@ class MuxReactNativePlayerModule : Module() {
         "onPlayingChange",
         "onTimeUpdate",
         "onSourceLoad",
-        "onSourceError"
+        "onSourceError",
+        "onFirstFrame"
       )
 
       Prop("source") { view: MuxVideoView, source: MuxVideoSourceRecord? ->

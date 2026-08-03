@@ -29,6 +29,7 @@ export type {
   MuxVideoControls,
   MuxVideoControlsTheme,
   MuxCustomData,
+  MuxFirstFrameEvent,
   MuxMaxResolution,
   MuxMinResolution,
   MuxNativeViewRef,

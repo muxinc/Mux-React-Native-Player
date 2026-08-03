@@ -65,6 +65,7 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
       onTimeUpdate,
       onSourceLoad,
       onSourceError,
+      onFirstFrame,
       onFullscreenChange,
       ...viewProps
     },
@@ -292,6 +293,9 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
       onSourceError: (event: { nativeEvent: any }) => {
         player._handleSourceError(event.nativeEvent);
         onSourceError?.(event.nativeEvent);
+      },
+      onFirstFrame: (event: { nativeEvent: any }) => {
+        onFirstFrame?.(event.nativeEvent);
       },
     } as const;
 

@@ -114,6 +114,21 @@ Readable state on the instance: `status`, `currentTime`, `duration`, `bufferedPo
 
 `idle → loading → ready → playing / paused / buffering → ended`, with `error` on failure. Subscribe via `onStatusChange` on the view.
 
+### First-frame event
+
+`onFirstFrame` fires once per source at the exact moment the first video frame is
+ready on screen (ExoPlayer's `onRenderedFirstFrame` on Android,
+`AVPlayerViewController.isReadyForDisplay` on iOS). Use it to hide a poster or
+thumbnail overlay with zero polling latency — for feeds, this is what makes a
+preloaded video appear to start instantly:
+
+```tsx
+<MuxVideoView
+  player={player}
+  onFirstFrame={() => setShowPoster(false)}
+/>
+```
+
 ## Data-only preloading
 
 Warm a source without rendering a player surface, so the next video in a feed starts

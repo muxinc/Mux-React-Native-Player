@@ -12,11 +12,13 @@ final class MuxVideoView: ExpoView {
   private let onTimeUpdate = EventDispatcher()
   private let onSourceLoad = EventDispatcher()
   private let onSourceError = EventDispatcher()
+  private let onFirstFrame = EventDispatcher()
 
   private let playerViewController = AVPlayerViewController()
   private var sourceFingerprint: String?
   private var currentPlaybackId: String?
   private var didEmitSourceLoad = false
+  private var didEmitFirstFrame = false
   private var didLoadLegibleGroup = false
   private var didReachEnd = false
   private var muted = false
@@ -30,6 +32,7 @@ final class MuxVideoView: ExpoView {
   private var statusObservation: NSKeyValueObservation?
   private var timeControlObservation: NSKeyValueObservation?
   private var externalPlaybackObservation: NSKeyValueObservation?
+  private var readyForDisplayObservation: NSKeyValueObservation?
   private var captionStyle: MuxCaptionStyleRecord?
   private var nowPlayingEnabled = false
   private var nowPlayingTitle: String?
@@ -92,6 +95,7 @@ final class MuxVideoView: ExpoView {
     nowPlayingArtwork = nil
     loadedArtworkURL = nil
     didEmitSourceLoad = false
+    didEmitFirstFrame = false
     didLoadLegibleGroup = false
     didReachEnd = false
     sendStatusChange(status: "loading")
@@ -325,6 +329,7 @@ final class MuxVideoView: ExpoView {
     nowPlayingArtwork = nil
     loadedArtworkURL = nil
     didEmitSourceLoad = false
+    didEmitFirstFrame = false
     didLoadLegibleGroup = false
     didReachEnd = false
     shouldPlay = false
@@ -354,6 +359,26 @@ final class MuxVideoView: ExpoView {
     externalPlaybackObservation = player.observe(\.isExternalPlaybackActive, options: [.new]) { [weak self] _, _ in
       DispatchQueue.main.async {
         self?.sendStatusChange()
+      }
+    }
+
+    // The exact first-frame signal: the view controller has a video frame
+    // ready for display. `.initial` covers an adopted preloaded item that is
+    // already displayable when observation starts. Emitted once per source;
+    // the flag resets in setSource/release.
+    readyForDisplayObservation = playerViewController.observe(
+      \.isReadyForDisplay,
+      options: [.initial, .new]
+    ) { [weak self] playerViewController, _ in
+      guard playerViewController.isReadyForDisplay else {
+        return
+      }
+      DispatchQueue.main.async {
+        guard let self, !self.didEmitFirstFrame else {
+          return
+        }
+        self.didEmitFirstFrame = true
+        self.onFirstFrame(["playbackId": self.currentPlaybackId ?? ""])
       }
     }
 
@@ -465,6 +490,7 @@ final class MuxVideoView: ExpoView {
     statusObservation = nil
     timeControlObservation = nil
     externalPlaybackObservation = nil
+    readyForDisplayObservation = nil
     if let selfMonitoredPlayerName {
       MUXSDKStats.destroyPlayer(selfMonitoredPlayerName)
       self.selfMonitoredPlayerName = nil

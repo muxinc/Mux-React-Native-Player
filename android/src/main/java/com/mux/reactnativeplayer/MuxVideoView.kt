@@ -36,6 +36,7 @@ class MuxVideoView(
   private val onTimeUpdate by EventDispatcher()
   private val onSourceLoad by EventDispatcher()
   private val onSourceError by EventDispatcher()
+  private val onFirstFrame by EventDispatcher()
 
   private val mainHandler = Handler(Looper.getMainLooper())
   private val playerView = (LayoutInflater.from(context)
@@ -51,6 +52,7 @@ class MuxVideoView(
   private var sourceFingerprint: String? = null
   private var currentPlaybackId: String? = null
   private var didEmitSourceLoad = false
+  private var didEmitFirstFrame = false
   private var muted = false
   private var volume = 1f
   private var loop = false
@@ -116,6 +118,17 @@ class MuxVideoView(
     override fun onTracksChanged(tracks: Tracks) {
       sendStatusChange()
     }
+
+    // The exact first-frame signal: the video renderer has handed a frame to
+    // the surface. Event-driven, so a poster overlay can hide with no polling
+    // latency. Emitted once per source; the flag resets in setSource/release.
+    override fun onRenderedFirstFrame() {
+      if (didEmitFirstFrame) {
+        return
+      }
+      didEmitFirstFrame = true
+      onFirstFrame(mapOf("playbackId" to currentPlaybackId.orEmpty()))
+    }
   }
 
   override fun onAttachedToWindow() {
@@ -142,6 +155,7 @@ class MuxVideoView(
     sourceFingerprint = source.fingerprint
     currentPlaybackId = source.playbackId
     didEmitSourceLoad = false
+    didEmitFirstFrame = false
     sendStatusChange("loading")
 
     // A still-warming preload player for this asset must not race the real
@@ -384,6 +398,7 @@ class MuxVideoView(
     sourceFingerprint = null
     currentPlaybackId = null
     didEmitSourceLoad = false
+    didEmitFirstFrame = false
     shouldPlay = false
     sendStatusChange("idle")
   }
