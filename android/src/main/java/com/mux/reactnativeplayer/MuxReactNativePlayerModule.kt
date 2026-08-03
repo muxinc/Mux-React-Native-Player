@@ -21,6 +21,19 @@ class MuxReactNativePlayerModule : Module() {
       }
     }
 
+    AsyncFunction("preload") { source: MuxVideoSourceRecord, bufferAheadSeconds: Double ->
+      val context = appContext.reactContext ?: return@AsyncFunction
+      MuxPreloadManager.preload(context, source, bufferAheadSeconds)
+    }
+
+    AsyncFunction("cancelPreload") { playbackId: String ->
+      MuxPreloadManager.cancel(playbackId)
+    }
+
+    AsyncFunction("cancelAllPreloads") {
+      MuxPreloadManager.cancelAll()
+    }
+
     View(MuxVideoView::class) {
       OnViewDestroys { view: MuxVideoView ->
         view.release()

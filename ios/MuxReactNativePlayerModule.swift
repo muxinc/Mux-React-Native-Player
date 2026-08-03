@@ -17,6 +17,18 @@ public final class MuxReactNativePlayerModule: Module {
       }
     }
 
+    AsyncFunction("preload") { (source: MuxVideoSourceRecord, bufferAheadSeconds: Double) in
+      MuxPreloadManager.shared.preload(source: source, bufferAheadSeconds: bufferAheadSeconds)
+    }.runOnQueue(.main)
+
+    AsyncFunction("cancelPreload") { (playbackId: String) in
+      MuxPreloadManager.shared.cancel(playbackId: playbackId)
+    }.runOnQueue(.main)
+
+    AsyncFunction("cancelAllPreloads") {
+      MuxPreloadManager.shared.cancelAll()
+    }.runOnQueue(.main)
+
     View(MuxVideoView.self) {
       Events(
         "onStatusChange",

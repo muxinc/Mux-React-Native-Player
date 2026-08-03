@@ -86,6 +86,54 @@ A complete, working implementation lives in the example app at
 Total live players never exceed `preloadBehind + preloadAhead + 1`. For the leanest
 memory profile in a downward-scrolling feed, use `preloadBehind: 0, preloadAhead: 1`.
 
+## Data-only media preloading
+
+`preloadMuxVideo(source, options?)` warms a source **without rendering a player
+surface**, so a vertical feed can start buffering the likely-next video while the
+current one plays and the swipe lands on a warm first frame instead of a cold start.
+
+```ts
+import {
+  preloadMuxVideo,
+  cancelMuxVideoPreload,
+  cancelAllMuxVideoPreloads,
+  isMuxVideoPreloadSupported,
+} from '@mux/mux-react-native-player';
+
+// When the feed settles on index N, warm N + 1:
+await preloadMuxVideo(
+  { playbackId: next.playbackId, maxResolution: '720p' },
+  { bufferAheadSeconds: 5 },
+);
+
+// When the window moves on or the feed blurs:
+await cancelMuxVideoPreload(next.playbackId);
+await cancelAllMuxVideoPreloads();
+```
+
+How the warmed bytes reach the real player:
+
+- **Android** — a headless, paused player buffers through the same on-disk smart
+  cache every `MuxVideoView` player reads, so startup bytes come from disk instead
+  of the network. The preload player is released automatically once its buffer
+  target is met (or after a 30s stall timeout), and immediately if the asset goes
+  live in a view.
+- **iOS** — a detached `AVPlayerItem` buffers on a paused, muted pooled player;
+  when a `MuxVideoView` receives a source with the same playback parameters
+  (playback ID, tokens, domain, resolution window, rendition order, clipping) it
+  adopts the warmed item and its buffer directly.
+
+Semantics to rely on:
+
+- Best-effort everywhere: all functions resolve without error when the native
+  module is missing (Expo Go, web) or a preload fails — playback falls back to a
+  normal cold start. Use `isMuxVideoPreloadSupported()` to know if preloading does
+  real work on the current platform.
+- At most 3 sources preload concurrently; older preloads are evicted first.
+- Repeated calls for the same playback ID are deduplicated, not restarted.
+- **DRM sources are never preloaded** — a license exchange outside an active
+  playback session could consume single-use tokens.
+
 ## Tips
 
 - Disable FlashList recycling for video rows (`maxItemsInRecyclePool={0}`,
@@ -93,3 +141,5 @@ memory profile in a downward-scrolling feed, use `preloadBehind: 0, preloadAhead
 - Cap resolution with `maxResolution: '720p'` on feed sources — full-res is wasted on a
   phone-height cell and costs bandwidth.
 - Show only the active item's controls (`controls={isActive ? 'custom' : 'none'}`).
+- Pair `useMuxVideoFeed` (or your own focus controller) with `preloadMuxVideo` on the
+  direction-aware next item for TikTok-style instant starts.

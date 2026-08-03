@@ -1,4 +1,11 @@
 export { createMuxVideoPlayer, MuxVideoPlayer } from './MuxVideoPlayer';
+export {
+  cancelAllMuxVideoPreloads,
+  cancelMuxVideoPreload,
+  isMuxVideoPreloadSupported,
+  preloadMuxVideo,
+} from './preload';
+export type { MuxPreloadOptions } from './preload';
 export { MuxVideoView, useMuxVideoPlayer } from './MuxVideoView';
 export { muxResolutionSupport, normalizeMuxVideoSource } from './normalizeSource';
 export {

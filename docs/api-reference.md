@@ -114,6 +114,17 @@ Readable state on the instance: `status`, `currentTime`, `duration`, `bufferedPo
 
 `idle → loading → ready → playing / paused / buffering → ended`, with `error` on failure. Subscribe via `onStatusChange` on the view.
 
+## Data-only preloading
+
+Warm a source without rendering a player surface, so the next video in a feed starts
+from a warm buffer instead of a network cold start:
+
+- `preloadMuxVideo(source, { bufferAheadSeconds? })` — begin buffering (default 5s ahead, clamped to 30s). Best-effort: resolves without error when unsupported or failed.
+- `cancelMuxVideoPreload(playbackId)` / `cancelAllMuxVideoPreloads()` — release preload resources.
+- `isMuxVideoPreloadSupported()` — true when the running binary exposes the native preload API.
+
+DRM sources are never preloaded. See [Feeds & Shorts](./feeds.md#data-only-media-preloading) for platform mechanics and feed integration.
+
 ## Live streams & DVR
 
 Live playback is detected automatically and exposed on the status:

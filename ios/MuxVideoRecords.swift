@@ -67,6 +67,23 @@ struct MuxVideoSourceRecord: Record {
     return values.joined(separator: "|")
   }
 
+  /// Fields that determine the playback URL and media pipeline only. Metadata
+  /// (Mux Data) and image-token fields are deliberately excluded so a preloaded
+  /// item can be adopted regardless of per-view analytics differences.
+  var playbackFingerprint: String {
+    [
+      playbackId,
+      playbackToken ?? "",
+      drmToken ?? "",
+      customDomain ?? "",
+      minResolution ?? "",
+      maxResolution ?? "",
+      renditionOrder,
+      clipping?.assetStartTime.map { String($0) } ?? "",
+      clipping?.assetEndTime.map { String($0) } ?? "",
+    ].joined(separator: "|")
+  }
+
   /// Build the Mux thumbnail URL used as lock-screen / Now Playing artwork.
   func artworkURL() -> URL? {
     guard !playbackId.isEmpty else {

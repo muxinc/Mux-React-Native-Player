@@ -2,6 +2,7 @@ import AVFoundation
 import AVKit
 import ExpoModulesCore
 import MediaPlayer
+import MUXSDKStats
 import MuxPlayerSwift
 import UIKit
 
@@ -36,6 +37,10 @@ final class MuxVideoView: ExpoView {
   private var nowPlayingArtwork: MPMediaItemArtwork?
   private var loadedArtworkURL: URL?
   private var remoteCommandsRegistered = false
+  /// Set when this view adopted a preloaded item and registered Mux Data
+  /// monitoring itself instead of through `prepare(...)`. `releasePlayer`
+  /// tears the binding down by this name.
+  private var selfMonitoredPlayerName: String?
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -96,11 +101,30 @@ final class MuxVideoView: ExpoView {
 
     configurePlaybackAudioSession()
 
-    playerViewController.prepare(
-      playbackID: source.playbackId,
-      playbackOptions: source.toPlaybackOptions(),
-      monitoringOptions: source.toMonitoringOptions()
-    )
+    if let warmedItem = MuxPreloadManager.shared.takeItem(
+      matchingPlaybackFingerprint: source.playbackFingerprint
+    ) {
+      // Adopt the preloaded item and the buffer it already accumulated.
+      // `prepare(...)` always constructs a fresh AVPlayerItem, which would
+      // throw that buffer away, so the player is assembled here and Mux Data
+      // monitoring is registered directly. The preload path never accepts DRM
+      // sources, so no FairPlay session registration is needed on this branch.
+      playerViewController.player = AVPlayer(playerItem: warmedItem)
+      let monitoringOptions = source.toMonitoringOptions()
+      MUXSDKStats.monitorAVPlayerViewController(
+        playerViewController,
+        withPlayerName: monitoringOptions.playerName,
+        customerData: source.toCustomerData(),
+        automaticErrorTracking: monitoringOptions.automaticErrorTracking
+      )
+      selfMonitoredPlayerName = monitoringOptions.playerName
+    } else {
+      playerViewController.prepare(
+        playbackID: source.playbackId,
+        playbackOptions: source.toPlaybackOptions(),
+        monitoringOptions: source.toMonitoringOptions()
+      )
+    }
 
     observePlayer()
     applyPlayerConfiguration()
@@ -441,6 +465,10 @@ final class MuxVideoView: ExpoView {
     statusObservation = nil
     timeControlObservation = nil
     externalPlaybackObservation = nil
+    if let selfMonitoredPlayerName {
+      MUXSDKStats.destroyPlayer(selfMonitoredPlayerName)
+      self.selfMonitoredPlayerName = nil
+    }
     playerViewController.stopMonitoring()
     playerViewController.player?.pause()
     playerViewController.player = nil

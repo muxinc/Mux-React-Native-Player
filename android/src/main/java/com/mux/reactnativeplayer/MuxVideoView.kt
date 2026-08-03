@@ -144,6 +144,10 @@ class MuxVideoView(
     didEmitSourceLoad = false
     sendStatusChange("loading")
 
+    // A still-warming preload player for this asset must not race the real
+    // player for bandwidth; whatever it fetched is already in the shared cache.
+    MuxPreloadManager.consume(source.playbackId)
+
     val bufferForPlaybackMs = startupBufferDurationMs.coerceAtLeast(500L).toInt()
     val bufferForPlaybackAfterRebufferMs = startupBufferDurationMs.coerceAtLeast(1_500L).toInt()
     val minBufferMs = startupBufferDurationMs.coerceAtLeast(3_000L).toInt()
