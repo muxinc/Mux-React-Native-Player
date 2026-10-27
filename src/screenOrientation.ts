@@ -1,4 +1,5 @@
 import { requireOptionalNativeModule } from 'expo-modules-core';
+import { Platform } from 'react-native';
 
 type MuxReactNativePlayerModule = {
   lockFullscreenLandscape?: () => Promise<void>;
@@ -22,6 +23,7 @@ function loadModule(): MuxReactNativePlayerModule | null {
 }
 
 export async function lockOrientationLandscape(): Promise<void> {
+  if (Platform.isTV) return;
   const mod = loadModule();
   if (!mod) {
     return;
@@ -34,6 +36,7 @@ export async function lockOrientationLandscape(): Promise<void> {
 }
 
 export async function unlockOrientation(): Promise<void> {
+  if (Platform.isTV) return;
   const mod = loadModule();
   if (!mod) {
     return;

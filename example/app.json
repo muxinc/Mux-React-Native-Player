@@ -5,7 +5,6 @@
     "scheme": "muxrnplayer",
     "version": "0.1.0",
     "orientation": "default",
-    "jsEngine": "hermes",
     "ios": {
       "bundleIdentifier": "com.mux.reactnativeplayer.example",
       "infoPlist": {
@@ -32,7 +31,8 @@
         }
       ],
       "expo-asset",
-      "expo-router"
+      "expo-router",
+      "./plugins/withNativeBuildCompatibility"
     ],
     "experiments": {
       "typedRoutes": true

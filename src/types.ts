@@ -73,6 +73,8 @@ export type MuxVideoSourceObject = {
 export type MuxVideoSource = string | MuxVideoSourceObject;
 
 export type NormalizedMuxVideoSource = MuxVideoSourceObject & {
+  /** Internal, non-secret identity echoed by native events across source changes. */
+  sourceId?: string;
   playbackId: string;
   renditionOrder: MuxRenditionOrder;
 };
@@ -88,6 +90,12 @@ export type MuxPlaybackStatus =
   | 'error';
 
 export type MuxPlayerStatus = {
+  sourceId?: string;
+  /** Last JavaScript playback intent applied by the native view. */
+  playbackIntentRevision?: number;
+  playbackId?: string;
+  /** Native playback intent, preserved during a temporary lifecycle suspension. */
+  playWhenReady?: boolean;
   status: MuxPlaybackStatus;
   currentTime: number;
   duration: number;
@@ -110,10 +118,14 @@ export type MuxPlayerStatus = {
 export type MuxStatusChangeEvent = MuxPlayerStatus;
 
 export type MuxPlayingChangeEvent = {
+  sourceId?: string;
+  playbackId?: string;
   isPlaying: boolean;
 };
 
 export type MuxTimeUpdateEvent = {
+  sourceId?: string;
+  playbackId?: string;
   currentTime: number;
   duration: number;
   bufferedPosition: number;
@@ -175,6 +187,7 @@ export type MuxVideoRobotsConfig = {
 };
 
 export type MuxSourceLoadEvent = {
+  sourceId?: string;
   playbackId: string;
   duration: number;
   captionTracks?: MuxVideoCaptionTrack[];
@@ -184,6 +197,7 @@ export type MuxSourceLoadEvent = {
 };
 
 export type MuxSourceErrorEvent = {
+  sourceId?: string;
   playbackId?: string;
   message: string;
   code?: string;
@@ -196,6 +210,7 @@ export type MuxSourceErrorEvent = {
  * unlike time updates, it is event-driven and carries no polling latency.
  */
 export type MuxFirstFrameEvent = {
+  sourceId?: string;
   playbackId?: string;
 };
 
@@ -247,6 +262,7 @@ export type MuxVideoControlsTheme = {
 
 export type MuxVideoViewProps = ViewProps & {
   player: import('./MuxVideoPlayer').MuxVideoPlayer;
+  /** TV `custom` uses a remote-focused overlay; `none` requires host-owned remote UI. */
   controls?: MuxVideoControls;
   controlsTheme?: MuxVideoControlsTheme;
   robots?: MuxVideoRobotsConfig;
@@ -257,6 +273,7 @@ export type MuxVideoViewProps = ViewProps & {
   thumbnailPreviews?: boolean;
   captionStyle?: MuxCaptionStyle;
   settingsMenu?: boolean | { speed?: boolean; quality?: boolean };
+  /** Mobile fullscreen. TV uses a host-owned fullscreen screen. */
   allowsFullscreen?: boolean;
   allowsAirPlay?: boolean;
   allowsPictureInPicture?: boolean;
@@ -286,6 +303,7 @@ export type NativeMuxVideoViewProps = Omit<
   | 'onFirstFrame'
   | 'onFullscreenChange'
 > & {
+  playbackIntent?: { revision: number; playWhenReady: boolean };
   source?: NormalizedMuxVideoSource;
   playWhenReady: boolean;
   muted: boolean;

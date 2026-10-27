@@ -13,6 +13,7 @@
     "moduleResolution": "Bundler",
     "noEmit": false,
     "outDir": "build",
+    "rootDir": "src",
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,

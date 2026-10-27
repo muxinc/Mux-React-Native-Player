@@ -14,7 +14,7 @@ export type AirPlayButtonProps = ViewProps & {
  */
 let NativeAirPlayButton: React.ComponentType<AirPlayButtonProps> | null = null;
 
-if (Platform.OS === 'ios') {
+if (Platform.OS === 'ios' && !Platform.isTV) {
   try {
     NativeAirPlayButton = requireNativeViewManager(
       'MuxAirPlayButton'

@@ -4,7 +4,9 @@ import android.content.Context
 import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
+import android.view.KeyEvent
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.annotation.OptIn
 import androidx.media3.common.C
@@ -22,6 +24,9 @@ import androidx.media3.ui.PlayerNotificationManager
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.SubtitleView
 import com.mux.player.MuxPlayer
+import com.facebook.react.bridge.LifecycleEventListener
+import com.facebook.react.bridge.ReactContext
+import com.facebook.react.common.LifecycleState
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.viewevent.EventDispatcher
 import expo.modules.kotlin.views.ExpoView
@@ -30,7 +35,15 @@ import expo.modules.kotlin.views.ExpoView
 class MuxVideoView(
   context: Context,
   appContext: AppContext,
-) : ExpoView(context, appContext) {
+) : ExpoView(context, appContext), LifecycleEventListener {
+  private val isTv = context.isTelevision()
+  override val shouldUseAndroidLayout: Boolean get() = isTv
+  private var tvInitialized = false
+  private var tvAttached = false
+  private var hostResumed = false
+  private var tvSuspended = true
+  private var lifecycleContext: ReactContext? = null
+  private val backPressHandler = TvBackPressHandler()
   private val onStatusChange by EventDispatcher()
   private val onPlayingChange by EventDispatcher()
   private val onTimeUpdate by EventDispatcher()
@@ -44,13 +57,25 @@ class MuxVideoView(
     it.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
     it.useController = true
     it.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-    it.setKeepContentOnPlayerReset(true)
+    it.setKeepContentOnPlayerReset(!isTv)
+    if (isTv) {
+      it.isFocusable = true
+      it.isFocusableInTouchMode = true
+      it.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
+      it.setControllerAnimationEnabled(false)
+      it.setShowSubtitleButton(true)
+    }
     addView(it)
   }
 
   private var player: MuxPlayer? = null
   private var sourceFingerprint: String? = null
   private var currentPlaybackId: String? = null
+  private var currentSourceId: String? = null
+  private var pendingSource: MuxVideoSourceRecord? = null
+  private var hasPendingSource = false
+  private var pendingPlaybackIntent: MuxPlaybackIntentRecord? = null
+  private var playbackIntentRevision = 0
   private var didEmitSourceLoad = false
   private var didEmitFirstFrame = false
   private var muted = false
@@ -63,6 +88,17 @@ class MuxVideoView(
   private var nowPlayingEnabled = false
   private var mediaSession: MediaSession? = null
   private var notificationManager: PlayerNotificationManager? = null
+  private var playerListener: Player.Listener? = null
+
+  private val requestTvFocus = Runnable {
+    if (isTv && !tvSuspended && player != null && playerView.useController && !hasFocus()) {
+      playerView.requestFocus()
+    }
+  }
+
+  init {
+    tvInitialized = true
+  }
 
   private data class TrackSelection(
     val id: String,
@@ -72,50 +108,64 @@ class MuxVideoView(
 
   private val timeUpdateRunnable = object : Runnable {
     override fun run() {
+      if (!isAttachedToWindow || player == null || (isTv && tvSuspended)) return
       sendTimeUpdate()
       mainHandler.postDelayed(this, timeUpdateEventIntervalMs)
     }
   }
 
-  private val listener = object : Player.Listener {
+  private fun createPlayerListener(owner: MuxPlayer) = object : Player.Listener {
     override fun onPlaybackStateChanged(playbackState: Int) {
+      if (player !== owner) return
       if (playbackState == Player.STATE_READY && !didEmitSourceLoad) {
         didEmitSourceLoad = true
         onSourceLoad(
-          mapOf(
+          sourceEventPayload(mapOf(
             "playbackId" to currentPlaybackId.orEmpty(),
             "duration" to durationSeconds(),
             "captionTracks" to captionTracksPayload(),
             "selectedCaptionTrackId" to selectedCaptionTrackId().orEmpty(),
             "audioTracks" to audioTracksPayload(),
             "selectedAudioTrackId" to selectedAudioTrackId().orEmpty(),
-          )
+          ))
         )
       }
-      if (playbackState == Player.STATE_READY && shouldPlay && player?.isPlaying != true) {
-        player?.play()
-      }
+      sendStatusChange()
+    }
+
+    override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+      if (player !== owner) return
+      // Native controls and MediaSession commands must update intent too. Lifecycle
+      // pauses preserve it so a foreground transition can resume only when wanted.
+      if (!isTv || !tvSuspended) shouldPlay = playWhenReady
+      // While buffering/suppressed, isPlaying may remain false for both play and
+      // pause. Publish intent now, before source-load can replay an old JS intent.
       sendStatusChange()
     }
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {
-      onPlayingChange(mapOf("isPlaying" to isPlaying))
+      if (player !== owner) return
+      onPlayingChange(sourceEventPayload(mapOf("playbackId" to currentPlaybackId.orEmpty(), "isPlaying" to isPlaying)))
       sendStatusChange()
     }
 
     override fun onPlayerError(error: PlaybackException) {
-      val message = error.localizedMessage ?: "Mux playback failed."
+      if (player !== owner) return
+      // Causes/localized messages can contain signed request URLs and DRM tokens.
+      // The stable Media3 code is useful to callers without exposing credentials.
+      val message = "Mux playback failed (${error.errorCodeName})."
       onSourceError(
-        mutableMapOf<String, Any>(
+        sourceEventPayload(mapOf(
           "playbackId" to currentPlaybackId.orEmpty(),
           "message" to message,
           "code" to error.errorCodeName
-        )
+        ))
       )
       sendStatusChange("error", message)
     }
 
     override fun onTracksChanged(tracks: Tracks) {
+      if (player !== owner) return
       sendStatusChange()
     }
 
@@ -123,25 +173,144 @@ class MuxVideoView(
     // the surface. Event-driven, so a poster overlay can hide with no polling
     // latency. Emitted once per source; the flag resets in setSource/release.
     override fun onRenderedFirstFrame() {
+      if (player !== owner) return
       if (didEmitFirstFrame) {
         return
       }
       didEmitFirstFrame = true
-      onFirstFrame(mapOf("playbackId" to currentPlaybackId.orEmpty()))
+      onFirstFrame(sourceEventPayload(mapOf("playbackId" to currentPlaybackId.orEmpty())))
     }
   }
 
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
+    if (isTv) {
+      tvAttached = true
+      lifecycleContext = appContext.reactContext as? ReactContext
+      hostResumed = lifecycleContext?.lifecycleState == LifecycleState.RESUMED
+      lifecycleContext?.addLifecycleEventListener(this)
+      updateTvLifecycle()
+      scheduleTvFocus()
+    }
     startTimeUpdates()
   }
 
   override fun onDetachedFromWindow() {
+    if (isTv) {
+      tvAttached = false
+      lifecycleContext?.removeLifecycleEventListener(this)
+      lifecycleContext = null
+      updateTvLifecycle()
+    }
     stopTimeUpdates()
     super.onDetachedFromWindow()
   }
 
+  override fun onHostResume() {
+    hostResumed = true
+    updateTvLifecycle()
+  }
+
+  override fun onHostPause() {
+    hostResumed = false
+    updateTvLifecycle()
+  }
+
+  override fun onHostDestroy() {
+    hostResumed = false
+    release()
+  }
+
+  override fun onVisibilityChanged(changedView: View, visibility: Int) {
+    super.onVisibilityChanged(changedView, visibility)
+    if (tvInitialized) updateTvLifecycle()
+  }
+
+  override fun onWindowVisibilityChanged(visibility: Int) {
+    super.onWindowVisibilityChanged(visibility)
+    if (tvInitialized) updateTvLifecycle()
+  }
+
+  override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
+    super.onWindowFocusChanged(hasWindowFocus)
+    // Track-selection popups may take window focus; do not pause their player.
+    if (tvInitialized && isTv && !hasWindowFocus) backPressHandler.reset()
+  }
+
+  private fun updateTvLifecycle() {
+    if (!isTv) return
+    tvSuspended = !tvAttached || !hostResumed || !isShown || windowVisibility != View.VISIBLE
+    if (tvSuspended) {
+      mainHandler.removeCallbacks(requestTvFocus)
+      backPressHandler.reset()
+      player?.pause()
+      detachNowPlaying()
+      stopTimeUpdates()
+    } else {
+      player?.playWhenReady = shouldPlay
+      if (nowPlayingEnabled) attachNowPlaying()
+      startTimeUpdates()
+      scheduleTvFocus()
+    }
+  }
+
+  private fun scheduleTvFocus() {
+    if (!isTv) return
+    mainHandler.removeCallbacks(requestTvFocus)
+    mainHandler.post(requestTvFocus)
+  }
+
+  override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+    if (!isTv) return super.dispatchKeyEvent(event)
+    // Leave host navigation alone when this player is not the focused playback view.
+    if (tvSuspended || player == null || !hasFocus() || !playerView.useController) return false
+    if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+      val consumed = when (event.action) {
+        KeyEvent.ACTION_DOWN -> backPressHandler.onDown(event.repeatCount, playerView.isControllerFullyVisible)
+        KeyEvent.ACTION_UP -> backPressHandler.onUp()
+        else -> false
+      }
+      if (consumed && event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+        playerView.hideController()
+        // Hidden control children must not strand focus outside the player.
+        playerView.requestFocus()
+      }
+      return consumed
+    }
+    // This is the only native routing path. Falling back to super would dispatch
+    // the same event to the PlayerView child twice. Unhandled events bubble to host.
+    return playerView.dispatchKeyEvent(event)
+  }
+
   fun setSource(source: MuxVideoSourceRecord?) {
+    pendingSource = source
+    hasPendingSource = true
+  }
+
+  fun applyPendingSource() {
+    pendingPlaybackIntent?.let { intent ->
+      pendingPlaybackIntent = null
+      // Commit the revision before applying intent: synchronous player callbacks
+      // acknowledge this atomic prop, while earlier command events keep the old revision.
+      val needsAcknowledgment = playbackIntentRevision != intent.revision && shouldPlay == intent.playWhenReady
+      playbackIntentRevision = intent.revision
+      setPlayWhenReady(intent.playWhenReady)
+      // An imperative command may already have applied this value. Acknowledge
+      // the new revision once even if setPlayWhenReady has no state change to emit.
+      if (needsAcknowledgment) sendStatusChange()
+    }
+    if (!hasPendingSource) return
+    val source = pendingSource
+    pendingSource = null
+    hasPendingSource = false
+    applySource(source)
+  }
+
+  fun setPlaybackIntent(intent: MuxPlaybackIntentRecord?) {
+    pendingPlaybackIntent = intent
+  }
+
+  private fun applySource(source: MuxVideoSourceRecord?) {
     if (source == null) {
       release()
       return
@@ -154,6 +323,7 @@ class MuxVideoView(
     releasePlayer()
     sourceFingerprint = source.fingerprint
     currentPlaybackId = source.playbackId
+    currentSourceId = source.sourceId
     didEmitSourceLoad = false
     didEmitFirstFrame = false
     sendStatusChange("loading")
@@ -187,14 +357,17 @@ class MuxVideoView(
     }
 
     val nextPlayer = builder.build()
-    nextPlayer.addListener(listener)
-    nextPlayer.setMediaItem(source.toMediaItem())
-    nextPlayer.playWhenReady = shouldPlay
-    nextPlayer.prepare()
-
     player = nextPlayer
     playerView.player = nextPlayer
     applyPlayerConfiguration()
+    val listener = createPlayerListener(nextPlayer)
+    playerListener = listener
+    nextPlayer.addListener(listener)
+    nextPlayer.setMediaItem(source.toMediaItem())
+    nextPlayer.playWhenReady = shouldPlay && (!isTv || !tvSuspended)
+    nextPlayer.prepare()
+    startTimeUpdates()
+    scheduleTvFocus()
 
     if (nowPlayingEnabled) {
       attachNowPlaying()
@@ -215,6 +388,35 @@ class MuxVideoView(
 
   fun setNativeControls(enabled: Boolean) {
     playerView.useController = enabled
+    if (isTv) {
+      // useController=false hides UI but does not clear a focused descendant.
+      // Exclude the entire native subtree so the JS overlay/host owns D-pad,
+      // select and Back; dispatchKeyEvent already declines this mode.
+      playerView.descendantFocusability = if (enabled) {
+        ViewGroup.FOCUS_AFTER_DESCENDANTS
+      } else {
+        ViewGroup.FOCUS_BLOCK_DESCENDANTS
+      }
+      playerView.isFocusableInTouchMode = enabled
+      playerView.isFocusable = enabled
+      playerView.importantForAccessibility = if (enabled) {
+        View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+      } else {
+        View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+      }
+      if (enabled) {
+        attachNowPlaying()
+        scheduleTvFocus()
+      } else {
+        mainHandler.removeCallbacks(requestTvFocus)
+        backPressHandler.reset()
+        playerView.clearFocus()
+        clearFocus()
+        // A MediaSession can receive transport keys outside view dispatch and
+        // duplicate the custom overlay's JS handler. Restore it in native mode.
+        detachNowPlaying()
+      }
+    }
   }
 
   fun setCaptionStyle(style: MuxCaptionStyleRecord?) {
@@ -355,7 +557,7 @@ class MuxVideoView(
 
   fun play() {
     shouldPlay = true
-    player?.play()
+    if (!isTv || !tvSuspended) player?.play()
     sendStatusChange()
   }
 
@@ -386,17 +588,20 @@ class MuxVideoView(
     val currentPlayer = player ?: return
     if (currentPlayer.isCurrentMediaItemLive) {
       currentPlayer.seekToDefaultPosition()
-      currentPlayer.play()
-      shouldPlay = true
+      play()
     }
     sendStatusChange()
     sendTimeUpdate()
   }
 
   fun release() {
+    pendingPlaybackIntent = null
+    pendingSource = null
+    hasPendingSource = false
     releasePlayer()
     sourceFingerprint = null
     currentPlaybackId = null
+    currentSourceId = null
     didEmitSourceLoad = false
     didEmitFirstFrame = false
     shouldPlay = false
@@ -410,19 +615,28 @@ class MuxVideoView(
   }
 
   private fun releasePlayer() {
+    stopTimeUpdates()
+    mainHandler.removeCallbacks(requestTvFocus)
+    backPressHandler.reset()
     detachNowPlaying()
-    playerView.player = null
-    player?.removeListener(listener)
-    player?.release()
+    val oldPlayer = player
     player = null
+    playerView.player = null
+    playerListener?.let { oldPlayer?.removeListener(it) }
+    playerListener = null
+    oldPlayer?.release()
   }
 
   private fun attachNowPlaying() {
+    if (!nowPlayingEnabled || (isTv && (tvSuspended || !playerView.useController))) return
     val currentPlayer = player ?: return
     val session = mediaSession ?: MediaSession.Builder(context, currentPlayer)
       .setId("mux-now-playing-${hashCode()}")
       .build()
       .also { mediaSession = it }
+
+    // TV transport integration uses the session; phone notification UI is mobile-only.
+    if (isTv) return
 
     if (notificationManager == null) {
       val manager = PlayerNotificationManager.Builder(
@@ -449,6 +663,7 @@ class MuxVideoView(
 
   private fun startTimeUpdates() {
     mainHandler.removeCallbacks(timeUpdateRunnable)
+    if (!isAttachedToWindow || player == null || (isTv && tvSuspended)) return
     mainHandler.postDelayed(timeUpdateRunnable, timeUpdateEventIntervalMs)
   }
 
@@ -457,18 +672,24 @@ class MuxVideoView(
   }
 
   private fun sendTimeUpdate() {
+    if (currentPlaybackId.isNullOrBlank()) return
     onTimeUpdate(
-      mapOf(
+      sourceEventPayload(mapOf(
+        "playbackId" to currentPlaybackId.orEmpty(),
         "currentTime" to currentTimeSeconds(),
         "duration" to durationSeconds(),
         "bufferedPosition" to bufferedPositionSeconds()
-      )
+      ))
     )
   }
 
   private fun sendStatusChange(status: String? = null, error: String? = null) {
+    if (currentPlaybackId.isNullOrBlank()) return
+    val resolvedStatus = status ?: inferStatus()
     val payload = mutableMapOf<String, Any>(
-      "status" to (status ?: inferStatus()),
+      "playbackId" to currentPlaybackId.orEmpty(),
+      "playbackIntentRevision" to playbackIntentRevision,
+      "status" to resolvedStatus,
       "currentTime" to currentTimeSeconds(),
       "duration" to durationSeconds(),
       "bufferedPosition" to bufferedPositionSeconds(),
@@ -488,17 +709,27 @@ class MuxVideoView(
       "seekableEnd" to durationSeconds(),
     )
 
+    // Expo can set source before playWhenReady in the same prop update. Initial
+    // loading/ready notifications must not overwrite the pending JS play intent.
+    if (resolvedStatus != "loading" && resolvedStatus != "ready") {
+      payload["playWhenReady"] = shouldPlay
+    }
+
     if (error != null) {
       payload["error"] = error
     }
 
     onStatusChange(
-      payload
+      sourceEventPayload(payload)
     )
   }
 
+  private fun sourceEventPayload(payload: Map<String, Any>): Map<String, Any> =
+    currentSourceId?.let { payload + ("sourceId" to it) } ?: payload
+
   private fun inferStatus(): String {
     val player = player ?: return "idle"
+    if (player.playerError != null) return "error"
     return when (player.playbackState) {
       Player.STATE_BUFFERING -> "buffering"
       Player.STATE_READY -> if (player.isPlaying) "playing" else "paused"

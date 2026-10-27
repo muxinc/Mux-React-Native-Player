@@ -6,8 +6,10 @@ const IOS_LANDSCAPE_SAFE_INSET = 50;
 
 import { MuxVideoPlayer } from './MuxVideoPlayer';
 import { MuxVideoControls } from './MuxVideoControls';
+import { MuxVideoTVControls } from './MuxVideoTVControls';
 import { buildMuxThumbnailUrl } from './muxImageUrls';
 import NativeMuxVideoView from './NativeMuxVideoView';
+import { resolveMuxControls } from './tv';
 import {
   lockOrientationLandscape,
   unlockOrientation,
@@ -72,6 +74,8 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
     ref
   ) => {
     const nativeRef = React.useRef<MuxNativeViewRef>(null);
+    const isTV = Platform.isTV;
+    const [firstFrameSource, setFirstFrameSource] = React.useState<string>();
     const [fullscreen, setFullscreen] = React.useState(false);
     const [fullscreenReady, setFullscreenReady] = React.useState(false);
     const enteredViaRotationRef = React.useRef(false);
@@ -88,6 +92,9 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
     );
 
     const enterFullscreen = React.useCallback(() => {
+      // TV presentation is owned by the host screen; do not remount the player
+      // in a phone-orientation modal (which also loses native remote focus).
+      if (isTV || !allowsFullscreen) return;
       player._markResumePoint();
       enteredViaRotationRef.current = false;
       suppressRotationEntryRef.current = false;
@@ -95,8 +102,9 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
       const { width, height } = Dimensions.get('window');
       setFullscreenReady(width > height);
       setFullscreen(true);
-    }, [player]);
+    }, [player, isTV, allowsFullscreen]);
     const beginExit = React.useCallback(() => {
+      if (isTV) return;
       player._markResumePoint();
       enteredViaRotationRef.current = false;
       suppressRotationEntryRef.current = true;
@@ -115,11 +123,12 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
           setFullscreen(false);
         }
       }, 600);
-    }, [player]);
+    }, [player, isTV]);
     const exitFullscreen = React.useCallback(() => {
       beginExit();
     }, [beginExit]);
     const toggleFullscreen = React.useCallback(() => {
+      if (isTV) return;
       if (fullscreen) {
         beginExit();
         return;
@@ -131,10 +140,10 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
       const { width, height } = Dimensions.get('window');
       setFullscreenReady(width > height);
       setFullscreen(true);
-    }, [beginExit, fullscreen, player]);
+    }, [beginExit, fullscreen, player, isTV]);
 
     React.useEffect(() => {
-      if (!allowsFullscreen) {
+      if (isTV || !allowsFullscreen) {
         return;
       }
       const subscription = Dimensions.addEventListener('change', ({ window }) => {
@@ -169,7 +178,7 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
         });
       });
       return () => subscription.remove();
-    }, [allowsFullscreen, player]);
+    }, [allowsFullscreen, player, isTV]);
 
     React.useImperativeHandle(
       ref,
@@ -202,7 +211,7 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
 
     React.useEffect(() => {
       onFullscreenChange?.(fullscreen);
-      if (!fullscreen) {
+      if (isTV || !fullscreen) {
         return;
       }
       const entryViaRotation = enteredViaRotationRef.current;
@@ -214,9 +223,9 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
           void unlockOrientation();
         }
       };
-    }, [fullscreen, onFullscreenChange]);
+    }, [fullscreen, onFullscreenChange, isTV]);
 
-    const controlsMode = controls ?? (nativeControls ? 'native' : 'none');
+    const controlsMode = resolveMuxControls(controls, nativeControls, isTV);
     const showCustomControls = controlsMode === 'custom';
     const showNativeControls = controlsMode === 'native';
 
@@ -243,8 +252,9 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
     const playbackStatus = snapshot.status.status;
     const showPoster =
       posterUri != null &&
-      snapshot.status.currentTime <= 0 &&
-      (playbackStatus === 'idle' || playbackStatus === 'loading');
+      (isTV
+        ? snapshot.source != null && firstFrameSource !== snapshot.source.sourceId && playbackStatus !== 'error'
+        : snapshot.status.currentTime <= 0 && (playbackStatus === 'idle' || playbackStatus === 'loading'));
     const controlsRobots = React.useMemo(
       () =>
         robots && robots.assetId == null && snapshot.source?.assetId
@@ -261,7 +271,11 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
       setGeneratedTranscript(undefined);
     }, [robotsAssetId]);
 
+    const isCurrentEvent = (event: { playbackId?: string; sourceId?: string }) =>
+      player._isCurrentSourceEvent(event);
+
     const sharedNativeProps = {
+      playbackIntent: { revision: snapshot.playbackIntentRevision, playWhenReady: snapshot.shouldPlay },
       startupBufferDuration,
       source: snapshot.source,
       playWhenReady: snapshot.shouldPlay,
@@ -271,33 +285,76 @@ export const MuxVideoView = React.forwardRef<MuxVideoViewRef, MuxVideoViewProps>
       playbackRate: snapshot.playbackRate,
       contentFit,
       allowsFullscreen,
-      allowsPictureInPicture,
+      allowsPictureInPicture: !isTV && allowsPictureInPicture,
       enableNowPlaying,
       captionStyle,
       timeUpdateEventInterval,
       onStatusChange: (event: { nativeEvent: any }) => {
+        if (!isCurrentEvent(event.nativeEvent)) return;
         player._handleStatusChange(event.nativeEvent);
         onStatusChange?.(event.nativeEvent);
       },
       onPlayingChange: (event: { nativeEvent: any }) => {
+        if (!isCurrentEvent(event.nativeEvent)) return;
         onPlayingChange?.(event.nativeEvent);
       },
       onTimeUpdate: (event: { nativeEvent: any }) => {
+        if (!isCurrentEvent(event.nativeEvent)) return;
         player._handleTimeUpdate(event.nativeEvent);
         onTimeUpdate?.(event.nativeEvent);
       },
       onSourceLoad: (event: { nativeEvent: any }) => {
+        if (!isCurrentEvent(event.nativeEvent)) return;
         player._handleSourceLoad(event.nativeEvent);
         onSourceLoad?.(event.nativeEvent);
       },
       onSourceError: (event: { nativeEvent: any }) => {
+        if (!isCurrentEvent(event.nativeEvent)) return;
         player._handleSourceError(event.nativeEvent);
         onSourceError?.(event.nativeEvent);
       },
       onFirstFrame: (event: { nativeEvent: any }) => {
+        if (!isCurrentEvent(event.nativeEvent)) return;
+        setFirstFrameSource(player._getSnapshot().source?.sourceId);
         onFirstFrame?.(event.nativeEvent);
       },
     } as const;
+
+    if (isTV) {
+      return (
+        <View {...viewProps} style={[styles.customControlsContainer, viewProps.style]}>
+          <NativeMuxVideoView
+            {...sharedNativeProps}
+            ref={nativeRef}
+            nativeControls={showNativeControls}
+            style={StyleSheet.absoluteFill}
+          />
+          {showPoster ? (
+            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+              <Image
+                accessible={false}
+                resizeMode={contentFit === 'cover' ? 'cover' : contentFit === 'fill' ? 'stretch' : 'contain'}
+                source={{ uri: posterUri }}
+                style={[StyleSheet.absoluteFill, styles.poster]}
+              />
+            </View>
+          ) : null}
+          {showCustomControls ? (
+            <MuxVideoTVControls
+              player={player}
+              status={snapshot.status}
+              shouldPlay={snapshot.shouldPlay}
+              source={snapshot.source}
+              thumbnailPreviews={thumbnailPreviews}
+              settingsMenu={settingsMenu}
+              theme={controlsTheme}
+              robots={controlsRobots}
+              contentFit={contentFit}
+            />
+          ) : null}
+        </View>
+      );
+    }
 
     if (showNativeControls) {
       return (

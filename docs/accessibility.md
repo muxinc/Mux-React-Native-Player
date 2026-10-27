@@ -51,3 +51,14 @@ To override, pass `captionStyle`:
 > Status: caption styling is applied via native APIs (iOS `AVTextStyleRule`, Android
 > `SubtitleView`/`CaptionStyleCompat`) and has not yet been validated on-device by the
 > maintainers — verify with a captioned asset and a development build.
+
+
+## TV preview
+
+TV custom controls provide icon buttons with accessibility labels, visible
+focus/selection states, trapped panels, Back/Menu dismissal, and initiating-control
+focus restoration. Playing or paused, the overlay fades away after three seconds without input,
+leaving native captions unobstructed; any remote press restores it.
+Simulator/emulator navigation checks are recorded in [TV validation](tv-validation.md).
+Physical VoiceOver/TalkBack qualification remains pending; mobile checks on this
+page do not establish TV screen-reader certification.

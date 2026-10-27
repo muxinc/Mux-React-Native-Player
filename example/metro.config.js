@@ -1,67 +1,15 @@
-const path = require('path');
 const { getDefaultConfig } = require('expo/metro-config');
+const path = require('node:path');
 
-const projectRoot = __dirname;
-const repoRoot = path.resolve(projectRoot, '..');
-
-const config = getDefaultConfig(projectRoot);
-const singletonModules = [
-  'expo',
-  'expo-modules-core',
-  'react',
-  'react-native',
-  'react/jsx-dev-runtime',
-  'react/jsx-runtime',
-];
-
-config.watchFolders = Array.from(
-  new Set([...(config.watchFolders ?? []), repoRoot])
-);
-
-config.resolver.extraNodeModules = {
-  ...(config.resolver.extraNodeModules ?? {}),
-  '@mux/mux-react-native-player': repoRoot,
-  expo: path.resolve(projectRoot, 'node_modules/expo'),
-  'expo-modules-core': path.resolve(projectRoot, 'node_modules/expo-modules-core'),
-  react: path.resolve(projectRoot, 'node_modules/react'),
-  'react-native': path.resolve(projectRoot, 'node_modules/react-native'),
-};
-
-const defaultResolveRequest = config.resolver.resolveRequest;
-config.resolver.resolveRequest = (context, moduleName, platform) => {
-  if (singletonModules.includes(moduleName) || moduleName.startsWith('react-native/')) {
-    return {
-      type: 'sourceFile',
-      filePath: require.resolve(moduleName, { paths: [projectRoot] }),
-    };
-  }
-
-  if (
-    moduleName === '../Promise' &&
-    context.originModulePath.endsWith('react-native/Libraries/Core/polyfillPromise.js')
-  ) {
-    return {
-      type: 'sourceFile',
-      filePath: path.resolve(projectRoot, 'metro-shims/react-native-promise.js'),
-    };
-  }
-
-  if (
-    moduleName === '../promiseRejectionTrackingOptions' &&
-    context.originModulePath.endsWith('react-native/Libraries/Core/polyfillPromise.js')
-  ) {
-    return {
-      type: 'sourceFile',
-      filePath: path.resolve(
-        projectRoot,
-        'metro-shims/react-native-promise-rejection-tracking-options.js'
-      ),
-    };
-  }
-
-  return defaultResolveRequest
-    ? defaultResolveRequest(context, moduleName, platform)
-    : context.resolveRequest(context, moduleName, platform);
-};
+// Expo 57 discovers the npm workspace and shares its React/native dependencies.
+const config = getDefaultConfig(__dirname);
+// Resolve the installed entry (build/index.js), including workspace symlinks.
+// Watch only library inputs, not the repository's generated native/build trees.
+const libraryRoot = path.dirname(path.dirname(require.resolve('@mux/mux-react-native-player')));
+config.watchFolders = [...new Set([
+  ...(config.watchFolders ?? []),
+  path.join(libraryRoot, 'src'),
+  path.join(libraryRoot, 'assets'),
+])];
 
 module.exports = config;

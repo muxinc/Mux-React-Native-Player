@@ -19,6 +19,8 @@
     "android/build.gradle",
     "android/src",
     "assets/*.gif",
+    "assets/controls/*.png",
+    "assets/fonts/*",
     "build/**/*.{js,d.ts,d.ts.map}",
     "ios/*.{h,m,mm,swift}",
     "plugin",
@@ -33,13 +35,19 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "check:plugin": "node --check plugin/withMuxReactNativePlayer.js",
-    "example:install": "npm --prefix example install",
+    "example:install": "npm install",
     "example:robots": "npm --prefix example run robots",
     "example:ios:prebuild": "npm --prefix example run prebuild:ios -- --clean",
     "example:ios": "npm --prefix example run ios",
     "example:ios:build": "npm --prefix example run ios:build",
+    "example:android:build": "npm --prefix example run android:build",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "tv:prebuild": "npm --prefix example-tv run prebuild",
+    "tv:ios:build": "npm --prefix example-tv run ios:build",
+    "tv:android:build": "npm --prefix example-tv run android:build",
+    "tv:typecheck": "npm --prefix example-tv run typecheck",
+    "test:config": "vitest run test/nativeBuildCompatibility.test.ts test/tvConfiguration.test.ts"
   },
   "keywords": [
     "mux",
@@ -50,20 +58,28 @@
   ],
   "peerDependencies": {
     "expo": "*",
+    "expo-font": "*",
     "expo-linear-gradient": "*",
     "expo-modules-core": "*",
     "react": "*",
     "react-native": "*"
   },
   "devDependencies": {
-    "@expo/config-plugins": "^55.0.8",
+    "@expo/config-plugins": "57.0.9",
     "@types/react": "^19.2.14",
-    "expo": "^55.0.23",
-    "expo-linear-gradient": "^55.0.13",
-    "expo-modules-core": "^55.0.25",
-    "react": "19.2.0",
-    "react-native": "0.83.6",
-    "typescript": "~5.9.2",
+    "expo": "57.0.22",
+    "expo-linear-gradient": "57.0.2",
+    "expo-modules-core": "57.0.18",
+    "react": "19.2.3",
+    "react-native": "npm:react-native-tvos@0.86.2-0",
+    "typescript": "~6.0.3",
     "vitest": "^3.1.4"
+  },
+  "workspaces": [
+    "example",
+    "example-tv"
+  ],
+  "overrides": {
+    "react-native": "$react-native"
   }
 }

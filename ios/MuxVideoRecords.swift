@@ -1,7 +1,14 @@
 import ExpoModulesCore
 import Foundation
 import MuxCore
+#if os(iOS)
 import MuxPlayerSwift
+#endif
+
+struct MuxPlaybackIntentRecord: Record {
+  @Field var revision: Int = 0
+  @Field var playWhenReady: Bool = false
+}
 
 struct MuxVideoClippingRecord: Record {
   @Field var assetStartTime: Double?
@@ -26,6 +33,7 @@ struct MuxVideoMetadataRecord: Record {
 }
 
 struct MuxVideoSourceRecord: Record {
+  @Field var sourceId: String?
   @Field var playbackId: String = ""
   @Field var playbackToken: String?
   @Field var drmToken: String?
@@ -40,6 +48,7 @@ struct MuxVideoSourceRecord: Record {
 
   var fingerprint: String {
     var values: [String] = []
+    values.append(sourceId ?? "")
     values.append(playbackId)
     values.append(playbackToken ?? "")
     values.append(drmToken ?? "")
@@ -105,6 +114,7 @@ struct MuxVideoSourceRecord: Record {
     return components.url
   }
 
+  #if os(iOS)
   func toPlaybackOptions() -> PlaybackOptions {
     if let playbackToken, let drmToken {
       return PlaybackOptions(
@@ -147,15 +157,17 @@ struct MuxVideoSourceRecord: Record {
     )
   }
 
-  func toMonitoringOptions() -> MonitoringOptions {
+  func toMonitoringOptions(playerName: String? = nil) -> MonitoringOptions {
     let customerData = toCustomerData()
-    let playerName = blankToNil(metadata?.playerName) ?? "MuxReactNativePlayer"
+    let playerName = playerName ?? blankToNil(metadata?.playerName) ?? "MuxReactNativePlayer"
     return MonitoringOptions(
       customerData: customerData,
       playerName: playerName,
       automaticErrorTracking: true
     )
   }
+
+  #endif
 
   func toCustomerData() -> MUXSDKCustomerData {
     let customerData = MUXSDKCustomerData()
@@ -197,6 +209,7 @@ private func blankToNil(_ value: String?) -> String? {
   return value
 }
 
+#if os(iOS)
 private extension MuxVideoClippingRecord {
   func toInstantClipping() -> InstantClipping? {
     switch (assetStartTime, assetEndTime) {
@@ -258,3 +271,5 @@ private extension String {
     }
   }
 }
+
+#endif

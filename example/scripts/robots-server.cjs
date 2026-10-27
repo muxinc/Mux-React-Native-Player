@@ -31,6 +31,11 @@ const routes = {
     workflow: 'find-key-moments',
     transform: transformKeyMoments,
   },
+  // Not a Robots workflow: cues come from the asset's existing caption track.
+  '/mux/robots/transcript': {
+    workflow: 'transcript',
+    load: loadTranscript,
+  },
 };
 
 if (!muxTokenId || !muxTokenSecret) {
@@ -71,7 +76,7 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
-    const result = await getRobotsResult(route.workflow, assetId, route.transform);
+    const result = await getRobotsResult(route, assetId);
     sendJson(response, 200, result);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Robots request failed.';
@@ -83,7 +88,7 @@ server.listen(port, host, () => {
   console.log(`Mux Robots proxy listening on http://${host}:${port}/mux/robots`);
 });
 
-function getRobotsResult(workflow, assetId, transform) {
+function getRobotsResult({ workflow, transform, load }, assetId) {
   const cacheKey = `${workflow}:${assetId}`;
   const cached = completedResults.get(cacheKey);
   if (cached) {
@@ -95,9 +100,8 @@ function getRobotsResult(workflow, assetId, transform) {
     return inFlight;
   }
 
-  const request = createAndPollJob(workflow, assetId)
-    .then(job => {
-      const result = transform(job);
+  const request = (load ? load(assetId) : findOrCreateJob(workflow, assetId).then(transform))
+    .then(result => {
       completedResults.set(cacheKey, result);
       return result;
     })
@@ -107,6 +111,24 @@ function getRobotsResult(workflow, assetId, transform) {
 
   inFlightResults.set(cacheKey, request);
   return request;
+}
+
+// Mux keeps jobs for 30 days; reuse a completed one instead of running it again.
+async function findOrCreateJob(workflow, assetId) {
+  const query = new URLSearchParams({ workflow, asset_id: assetId, status: 'completed', limit: '25' });
+  const listed = await muxFetch(`/robots/v0/jobs?${query}`, { method: 'GET' });
+  const existing = (Array.isArray(listed?.data) ? listed.data : [])
+    .find(job => job?.id && job.status === 'completed' && job.workflow === workflow);
+  if (existing) {
+    const job = getResponseData(await muxFetch(`/robots/v0/jobs/${workflow}/${existing.id}`, { method: 'GET' }));
+    if (job.parameters?.asset_id === assetId && job.outputs) {
+      console.log(`Reusing completed ${workflow} job ${job.id} for ${assetId}.`);
+      return job;
+    }
+  }
+
+  console.log(`Starting a ${workflow} job for ${assetId}.`);
+  return createAndPollJob(workflow, assetId);
 }
 
 async function createAndPollJob(workflow, assetId) {
@@ -198,6 +220,57 @@ function transformKeyMoments(job) {
       score: toOptionalNumber(moment.overall_score ?? moment.score),
     }))
     .filter(moment => Number.isFinite(moment.startTime) && Number.isFinite(moment.endTime) && moment.title);
+}
+
+async function loadTranscript(assetId) {
+  const asset = getResponseData(await muxFetch(`/video/v1/assets/${encodeURIComponent(assetId)}`, { method: 'GET' }));
+  const tracks = (asset.tracks || []).filter(track => track.type === 'text' && track.status === 'ready');
+  const track = tracks.find(track => String(track.text_source).startsWith('generated')) || tracks[0];
+  const playbackId = (asset.playback_ids || []).find(playback => playback.policy === 'public')?.id;
+  if (!track || !playbackId) {
+    throw new Error('Transcripts need a ready caption track and a public playback ID.');
+  }
+
+  const response = await fetch(`https://stream.mux.com/${playbackId}/text/${track.id}.vtt`);
+  if (!response.ok) {
+    throw new Error(`Caption track request failed with ${response.status}.`);
+  }
+
+  return { cues: mergeCues(parseVtt(await response.text())) };
+}
+
+function parseVtt(vtt) {
+  return vtt.split(/\r?\n\r?\n/).flatMap(block => {
+    const lines = block.split(/\r?\n/);
+    const timing = lines.findIndex(line => line.includes('-->'));
+    if (timing === -1) {
+      return [];
+    }
+
+    const [start, end] = lines[timing].split('-->').map(part => parseVttTime(part.trim().split(/\s+/)[0]));
+    const text = lines.slice(timing + 1).join(' ').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    return Number.isFinite(start) && text ? [{ startTime: start, endTime: end, text }] : [];
+  });
+}
+
+function parseVttTime(value) {
+  const parts = value.split(':').map(Number);
+  return parts.reduce((total, part) => total * 60 + part, 0);
+}
+
+// Caption cues are a few words each; join them into sentence-sized rows.
+function mergeCues(cues) {
+  const merged = [];
+  for (const cue of cues) {
+    const last = merged[merged.length - 1];
+    if (last && !/[.!?]["')\]]?$/.test(last.text) && cue.startTime - last.startTime < 15) {
+      last.text = `${last.text} ${cue.text}`;
+      last.endTime = cue.endTime;
+    } else {
+      merged.push({ ...cue });
+    }
+  }
+  return merged;
 }
 
 function getResponseData(body) {

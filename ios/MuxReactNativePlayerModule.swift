@@ -6,15 +6,19 @@ public final class MuxReactNativePlayerModule: Module {
     Name("MuxReactNativePlayer")
 
     AsyncFunction("lockFullscreenLandscape") {
+      #if os(iOS)
       DispatchQueue.main.async {
         Self.requestOrientation(.landscapeRight, mask: .landscape)
       }
+      #endif
     }
 
     AsyncFunction("unlockFullscreenOrientation") {
+      #if os(iOS)
       DispatchQueue.main.async {
         Self.requestOrientation(.portrait, mask: .allButUpsideDown)
       }
+      #endif
     }
 
     AsyncFunction("preload") { (source: MuxVideoSourceRecord, bufferAheadSeconds: Double) in
@@ -38,6 +42,10 @@ public final class MuxReactNativePlayerModule: Module {
         "onSourceError",
         "onFirstFrame"
       )
+
+      OnViewDidUpdateProps { (view: MuxVideoView) in
+        view.applyPendingSource()
+      }
 
       Prop("source") { (view: MuxVideoView, source: MuxVideoSourceRecord?) in
         view.setSource(source)
@@ -73,6 +81,10 @@ public final class MuxReactNativePlayerModule: Module {
 
       Prop("startupBufferDuration") { (view: MuxVideoView, duration: Double) in
         view.setStartupBufferDuration(duration)
+      }
+
+      Prop("playbackIntent") { (view: MuxVideoView, intent: MuxPlaybackIntentRecord) in
+        view.setPlaybackIntent(intent)
       }
 
       Prop("playWhenReady") { (view: MuxVideoView, playWhenReady: Bool) in
@@ -149,6 +161,7 @@ public final class MuxReactNativePlayerModule: Module {
     }
   }
 
+  #if os(iOS)
   private static func requestOrientation(_ orientation: UIInterfaceOrientation, mask: UIInterfaceOrientationMask) {
     guard let windowScene = UIApplication.shared.connectedScenes
       .compactMap({ $0 as? UIWindowScene })
@@ -165,4 +178,5 @@ public final class MuxReactNativePlayerModule: Module {
       UIViewController.attemptRotationToDeviceOrientation()
     }
   }
+  #endif
 }

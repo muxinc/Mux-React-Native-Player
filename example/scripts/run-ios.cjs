@@ -4,25 +4,23 @@ const { spawn } = require('node:child_process');
 const path = require('node:path');
 
 const exampleRoot = path.resolve(__dirname, '..');
-const repoRoot = path.resolve(exampleRoot, '..');
 const metroPort = process.env.MUX_RN_EXAMPLE_METRO_PORT || '8081';
 const appPath = path.join(
-  repoRoot,
-  'build/example-ios/DerivedData/Build/Products/Debug-iphonesimulator/MuxReactNativePlayerExample.app'
+  exampleRoot,
+  'build/DerivedData/Build/Products/Debug-iphonesimulator/MuxReactNativePlayerExample.app'
 );
 const expoBin = path.join(
-  exampleRoot,
-  'node_modules',
-  '.bin',
-  process.platform === 'win32' ? 'expo.cmd' : 'expo'
+  path.dirname(require.resolve('expo/package.json')),
+  'bin',
+  'cli'
 );
 
 async function main() {
   await run('npm', ['run', 'ios:build'], { cwd: exampleRoot });
 
   await run(
-    expoBin,
-    ['run:ios', '--binary', appPath, '--port', metroPort],
+    process.execPath,
+    [expoBin, 'run:ios', '--binary', appPath, '--port', metroPort],
     { cwd: exampleRoot }
   );
 }

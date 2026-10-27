@@ -1,13 +1,25 @@
 {
-  "platforms": ["ios", "android"],
+  "platforms": [
+    "ios",
+    "tvos",
+    "android"
+  ],
   "apple": {
-    "modules": ["MuxReactNativePlayerModule", "MuxAirPlayButtonModule"],
+    "modules": [
+      "MuxReactNativePlayerModule",
+      "MuxAirPlayButtonModule"
+    ],
     "podspecPath": "MuxReactNativePlayer.podspec"
   },
   "ios": {
-    "modules": ["MuxReactNativePlayerModule", "MuxAirPlayButtonModule"]
+    "modules": [
+      "MuxReactNativePlayerModule",
+      "MuxAirPlayButtonModule"
+    ]
   },
   "android": {
-    "modules": ["com.mux.reactnativeplayer.MuxReactNativePlayerModule"]
+    "modules": [
+      "com.mux.reactnativeplayer.MuxReactNativePlayerModule"
+    ]
   }
 }

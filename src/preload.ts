@@ -1,4 +1,5 @@
 import { requireOptionalNativeModule } from 'expo-modules-core';
+import { Platform } from 'react-native';
 
 import { normalizeMuxVideoSource } from './normalizeSource';
 import type { MuxVideoSource, NormalizedMuxVideoSource } from './types';
@@ -48,6 +49,8 @@ type MuxReactNativePlayerModule = {
 let cached: MuxReactNativePlayerModule | null | undefined;
 
 function loadModule(): MuxReactNativePlayerModule | null {
+  // TV caching/preload is intentionally deferred, including Android's smart cache.
+  if (Platform.isTV) return null;
   if (cached !== undefined) {
     return cached;
   }

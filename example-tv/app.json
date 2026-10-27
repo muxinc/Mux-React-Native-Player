@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Mux Player TV",
+    "slug": "mux-player-tv",
+    "scheme": "muxplayertv",
+    "version": "0.1.0",
+    "orientation": "landscape",
+    "ios": {
+      "bundleIdentifier": "com.mux.reactnativeplayer.tvexample"
+    },
+    "android": {
+      "package": "com.mux.reactnativeplayer.tvexample"
+    },
+    "plugins": [
+      [
+        "@react-native-tvos/config-tv",
+        {
+          "isTV": true,
+          "tvosDeploymentTarget": "16.4",
+          "androidTVRequired": true
+        }
+      ],
+      "@mux/mux-react-native-player/plugin",
+      "../example/plugins/withNativeBuildCompatibility"
+    ]
+  }
+}

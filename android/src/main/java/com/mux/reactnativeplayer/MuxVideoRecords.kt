@@ -12,6 +12,14 @@ import com.mux.stats.sdk.core.model.CustomerVideoData
 import expo.modules.kotlin.records.Field
 import expo.modules.kotlin.records.Record
 
+class MuxPlaybackIntentRecord : Record {
+  @Field
+  var revision: Int = 0
+
+  @Field
+  var playWhenReady: Boolean = false
+}
+
 class MuxVideoClippingRecord : Record {
   @Field
   var assetStartTime: Double? = null
@@ -59,6 +67,9 @@ class MuxVideoMetadataRecord : Record {
 
 class MuxVideoSourceRecord : Record {
   @Field
+  var sourceId: String? = null
+
+  @Field
   var playbackId: String = ""
 
   @Field
@@ -93,6 +104,8 @@ class MuxVideoSourceRecord : Record {
 
   val fingerprint: String
     get() = listOf(
+      // View identity only: never added to media URLs, cache keys, or analytics.
+      sourceId.orEmpty(),
       playbackId,
       playbackToken.orEmpty(),
       drmToken.orEmpty(),

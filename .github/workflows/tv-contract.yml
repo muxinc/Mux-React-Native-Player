@@ -1,0 +1,28 @@
+name: TV configuration contract
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run tv:typecheck
+      - run: npm exec --workspace example -- tsc --noEmit
+      - run: npm test
+      - run: npm run build
+      - run: npm run check:plugin
+      - run: npm run tv:prebuild
+      - run: node example-tv/scripts/check-native-config.cjs
+      - name: Verify repeated non-clean TV prebuild
+        run: |
+          npm run tv:prebuild
+          node example-tv/scripts/check-native-config.cjs

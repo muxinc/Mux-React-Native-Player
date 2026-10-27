@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const requireOptionalNativeModule = vi.fn();
+const platform = vi.hoisted(() => ({ isTV: false }));
+vi.mock('react-native', () => ({ Platform: platform }));
 
 vi.mock('expo-modules-core', () => ({
   requireOptionalNativeModule: (name: string) => requireOptionalNativeModule(name),
@@ -22,6 +24,7 @@ async function loadPreloadModule() {
 
 describe('preloadMuxVideo', () => {
   beforeEach(() => {
+    platform.isTV = false;
     requireOptionalNativeModule.mockReset();
   });
 
@@ -63,6 +66,19 @@ describe('preloadMuxVideo', () => {
     });
 
     expect(nativeModule.preload).not.toHaveBeenCalled();
+  });
+
+  it('does not allocate preload players on TV even when the native API exists', async () => {
+    platform.isTV = true;
+    const nativeModule = createNativeModule();
+    requireOptionalNativeModule.mockReturnValue(nativeModule);
+    const api = await loadPreloadModule();
+    expect(api.isMuxVideoPreloadSupported()).toBe(false);
+    await api.preloadMuxVideo('abc123');
+    await api.cancelAllMuxVideoPreloads();
+    expect(requireOptionalNativeModule).not.toHaveBeenCalled();
+    expect(nativeModule.preload).not.toHaveBeenCalled();
+    platform.isTV = false;
   });
 
   it('resolves without error when the native module is missing', async () => {

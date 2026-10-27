@@ -1,3 +1,4 @@
+#if os(iOS)
 import AVFoundation
 import Foundation
 import MuxPlayerSwift
@@ -99,3 +100,15 @@ final class MuxPreloadManager {
     entry.player.replaceCurrentItem(with: nil)
   }
 }
+
+#else
+import AVFoundation
+
+/// Preloading is unavailable on tvOS; preserve the module API as a no-op.
+final class MuxPreloadManager {
+  static let shared = MuxPreloadManager()
+  func preload(source: MuxVideoSourceRecord, bufferAheadSeconds: Double) {}
+  func cancel(playbackId: String) {}
+  func cancelAll() {}
+}
+#endif

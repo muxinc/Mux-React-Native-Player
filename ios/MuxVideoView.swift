@@ -3,7 +3,9 @@ import AVKit
 import ExpoModulesCore
 import MediaPlayer
 import MUXSDKStats
+#if os(iOS)
 import MuxPlayerSwift
+#endif
 import UIKit
 
 final class MuxVideoView: ExpoView {
@@ -15,8 +17,20 @@ final class MuxVideoView: ExpoView {
   private let onFirstFrame = EventDispatcher()
 
   private let playerViewController = AVPlayerViewController()
+  private let monitorName = "MuxReactNativePlayer-\(UUID().uuidString)"
+  private var sourceGeneration = UUID()
+  private var sourceError: String?
+  private var didReportError = false
+  private var lifecycleObservers: [NSObjectProtocol] = []
+  private var applicationInactive = false
+  private var mediaSelectionObserver: NSObjectProtocol?
   private var sourceFingerprint: String?
+  private var pendingSource: MuxVideoSourceRecord?
+  private var hasPendingSource = false
+  private var pendingPlaybackIntent: MuxPlaybackIntentRecord?
+  private var playbackIntentRevision = 0
   private var currentPlaybackId: String?
+  private var currentSourceId: String?
   private var didEmitSourceLoad = false
   private var didEmitFirstFrame = false
   private var didLoadLegibleGroup = false
@@ -52,14 +66,38 @@ final class MuxVideoView: ExpoView {
     playerViewController.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     playerViewController.showsPlaybackControls = true
     playerViewController.videoGravity = .resizeAspect
+    #if os(iOS)
     if #available(iOS 16.0, *) {
       playerViewController.allowsVideoFrameAnalysis = false
     }
+    #endif
+    #if os(tvOS)
+    playerViewController.allowsPictureInPicturePlayback = false
+    #endif
     addSubview(playerViewController.view)
+    #if os(tvOS)
+    lifecycleObservers = [
+      NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+        guard let self else { return }
+        self.applicationInactive = true
+        self.playerViewController.player?.pause()
+        self.stopTimeUpdates()
+        self.sendStatusChange()
+      },
+      NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+        guard let self else { return }
+        self.applicationInactive = false
+        if self.shouldPlay { self.startPlaybackIfPossible() }
+        self.startTimeUpdates()
+        self.sendStatusChange()
+      },
+    ]
+    #endif
   }
 
   deinit {
     releasePlayer()
+    for observer in lifecycleObservers { NotificationCenter.default.removeObserver(observer) }
     stopTimeUpdates()
     if nowPlayingEnabled {
       unregisterRemoteCommands()
@@ -72,12 +110,77 @@ final class MuxVideoView: ExpoView {
 
     if window == nil {
       stopTimeUpdates()
+      detachPlayerController()
+      #if os(tvOS)
+      playerViewController.player?.pause()
+      sendStatusChange()
+      #endif
     } else {
+      attachPlayerController()
+      #if os(tvOS)
+      if shouldPlay { startPlaybackIfPossible() }
+      #endif
       startTimeUpdates()
     }
   }
 
+  private func attachPlayerController() {
+    guard playerViewController.parent == nil else { return }
+    var responder: UIResponder? = next
+    while let candidate = responder {
+      if let parent = candidate as? UIViewController {
+        parent.addChild(playerViewController)
+        if playerViewController.view.superview !== self { addSubview(playerViewController.view) }
+        playerViewController.didMove(toParent: parent)
+        #if os(tvOS)
+        if playerViewController.showsPlaybackControls { setNeedsFocusUpdate() }
+        #endif
+        return
+      }
+      responder = candidate.next
+    }
+  }
+
+  private func detachPlayerController() {
+    guard playerViewController.parent != nil else { return }
+    playerViewController.willMove(toParent: nil)
+    playerViewController.view.removeFromSuperview()
+    playerViewController.removeFromParent()
+  }
+
+  override var preferredFocusEnvironments: [UIFocusEnvironment] {
+    playerViewController.showsPlaybackControls ? [playerViewController] : super.preferredFocusEnvironments
+  }
+
   func setSource(_ source: MuxVideoSourceRecord?) {
+    // Expo prop setters run in dictionary order. Prepare only after the whole
+    // batch so playWhenReady and configuration belong to this source.
+    pendingSource = source
+    hasPendingSource = true
+  }
+
+  func setPlaybackIntent(_ intent: MuxPlaybackIntentRecord) {
+    pendingPlaybackIntent = intent
+  }
+
+  func applyPendingSource() {
+    // Commit the revision before applying intent: synchronous command events
+    // must identify the JS intent they acknowledge, even without a new source.
+    if let intent = pendingPlaybackIntent {
+      pendingPlaybackIntent = nil
+      if intent.revision >= playbackIntentRevision {
+        playbackIntentRevision = intent.revision
+        setPlayWhenReady(intent.playWhenReady)
+      }
+    }
+    guard hasPendingSource else { return }
+    let source = pendingSource
+    pendingSource = nil
+    hasPendingSource = false
+    applySource(source)
+  }
+
+  private func applySource(_ source: MuxVideoSourceRecord?) {
     guard let source else {
       release()
       return
@@ -90,6 +193,7 @@ final class MuxVideoView: ExpoView {
     releasePlayer()
     sourceFingerprint = source.fingerprint
     currentPlaybackId = source.playbackId
+    currentSourceId = source.sourceId
     nowPlayingTitle = source.metadata?.videoTitle
     nowPlayingArtworkURL = source.artworkURL()
     nowPlayingArtwork = nil
@@ -105,6 +209,31 @@ final class MuxVideoView: ExpoView {
 
     configurePlaybackAudioSession()
 
+    #if os(tvOS)
+    do {
+      let url = try MuxPlaybackURL.make(
+        playbackId: source.playbackId, playbackToken: source.playbackToken,
+        drmToken: source.drmToken, customDomain: source.customDomain,
+        minResolution: source.minResolution, maxResolution: source.maxResolution,
+        renditionOrder: source.renditionOrder,
+        assetStartTime: source.clipping?.assetStartTime,
+        assetEndTime: source.clipping?.assetEndTime
+      )
+      playerViewController.player = AVPlayer(playerItem: AVPlayerItem(url: url))
+      // Source replacement destroys the old player and its monitor before this
+      // new view session starts; metadata.playerName remains a reporting label.
+      MUXSDKStats.monitorAVPlayerViewController(
+        playerViewController, withPlayerName: monitorName,
+        customerData: source.toCustomerData(), automaticErrorTracking: false
+      )
+      selfMonitoredPlayerName = monitorName
+    } catch {
+      let failure = error as? MuxPlaybackURL.SourceError ?? .invalidSource
+      reportPlaybackError(message: failure.rawValue,
+        code: failure == .unsupportedDRM ? "TV_DRM_UNSUPPORTED" : "INVALID_SOURCE")
+      return
+    }
+    #else
     if let warmedItem = MuxPreloadManager.shared.takeItem(
       matchingPlaybackFingerprint: source.playbackFingerprint
     ) {
@@ -114,7 +243,7 @@ final class MuxVideoView: ExpoView {
       // monitoring is registered directly. The preload path never accepts DRM
       // sources, so no FairPlay session registration is needed on this branch.
       playerViewController.player = AVPlayer(playerItem: warmedItem)
-      let monitoringOptions = source.toMonitoringOptions()
+      let monitoringOptions = source.toMonitoringOptions(playerName: monitorName)
       MUXSDKStats.monitorAVPlayerViewController(
         playerViewController,
         withPlayerName: monitoringOptions.playerName,
@@ -126,22 +255,38 @@ final class MuxVideoView: ExpoView {
       playerViewController.prepare(
         playbackID: source.playbackId,
         playbackOptions: source.toPlaybackOptions(),
-        monitoringOptions: source.toMonitoringOptions()
+        monitoringOptions: source.toMonitoringOptions(playerName: monitorName)
       )
     }
+
+    #endif
 
     observePlayer()
     applyPlayerConfiguration()
     startTimeUpdates()
-
-    if shouldPlay {
-      playerViewController.player?.play()
-    }
   }
 
   func setNativeControls(_ enabled: Bool) {
     playerViewController.showsPlaybackControls = enabled
+    #if os(tvOS)
+    // Hiding AVKit controls alone does not relinquish their focus/press route.
+    // Custom controls (or a controls="none" host) own the remote while the
+    // native surface continues rendering and keeps its existing Data monitor.
+    playerViewController.view.isUserInteractionEnabled = enabled
+    playerViewController.view.accessibilityElementsHidden = !enabled
+    if !enabled {
+      resignPlayerFirstResponder(in: playerViewController.view)
+    }
+    window?.setNeedsFocusUpdate()
+    #endif
   }
+
+  #if os(tvOS)
+  private func resignPlayerFirstResponder(in view: UIView) {
+    if view.isFirstResponder { view.resignFirstResponder() }
+    for child in view.subviews { resignPlayerFirstResponder(in: child) }
+  }
+  #endif
 
   func setContentFit(_ contentFit: String) {
     switch contentFit {
@@ -155,7 +300,11 @@ final class MuxVideoView: ExpoView {
   }
 
   func setAllowsPictureInPicture(_ enabled: Bool) {
+    #if os(iOS)
     playerViewController.allowsPictureInPicturePlayback = enabled
+    #else
+    playerViewController.allowsPictureInPicturePlayback = false
+    #endif
   }
 
   func setTimeUpdateEventInterval(_ interval: Double) {
@@ -282,10 +431,19 @@ final class MuxVideoView: ExpoView {
 
   func seekTo(_ seconds: Double) {
     didReachEnd = false
-    let target = CMTime(seconds: max(0, seconds), preferredTimescale: 600)
-    playerViewController.player?.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero)
-    sendStatusChange()
-    sendTimeUpdate()
+    guard seconds.isFinite, let player = playerViewController.player else { return }
+    let range = seekableRange()
+    let position = range.end > range.start
+      ? min(range.end, max(range.start, seconds)) : max(0, seconds)
+    let generation = sourceGeneration
+    let target = CMTime(seconds: position, preferredTimescale: 600)
+    player.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+      DispatchQueue.main.async {
+        guard let self, self.sourceGeneration == generation else { return }
+        self.sendStatusChange()
+        self.sendTimeUpdate()
+      }
+    }
   }
 
   func seekToLive() {
@@ -303,10 +461,12 @@ final class MuxVideoView: ExpoView {
   }
 
   private func isLiveStream() -> Bool {
-    guard let duration = playerViewController.player?.currentItem?.duration else {
+    // An item's duration stays indefinite until it has loaded, so before then
+    // every VOD would look live. Only a ready item can tell.
+    guard let item = playerViewController.player?.currentItem, item.status == .readyToPlay else {
       return false
     }
-    return duration.isIndefinite
+    return item.duration.isIndefinite
   }
 
   private func seekableRange() -> (start: Double, end: Double) {
@@ -321,6 +481,8 @@ final class MuxVideoView: ExpoView {
   }
 
   func release() {
+    pendingSource = nil
+    hasPendingSource = false
     releasePlayer()
     sourceFingerprint = nil
     currentPlaybackId = nil
@@ -334,6 +496,7 @@ final class MuxVideoView: ExpoView {
     didReachEnd = false
     shouldPlay = false
     sendStatusChange(status: "idle")
+    currentSourceId = nil
     if nowPlayingEnabled {
       clearNowPlayingInfo()
     }
@@ -344,23 +507,43 @@ final class MuxVideoView: ExpoView {
       return
     }
 
+    let generation = sourceGeneration
+    mediaSelectionObserver = NotificationCenter.default.addObserver(
+      forName: AVPlayerItem.mediaSelectionDidChangeNotification, object: player.currentItem, queue: .main
+    ) { [weak self] _ in
+      guard let self, self.sourceGeneration == generation else { return }
+      self.sendStatusChange()
+    }
     statusObservation = player.observe(\.currentItem?.status, options: [.initial, .new]) { [weak self] _, _ in
       DispatchQueue.main.async {
-        self?.handlePlayerStatusUpdate()
+        guard let self, self.sourceGeneration == generation else { return }
+        self.handlePlayerStatusUpdate()
       }
     }
 
-    timeControlObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] _, _ in
+    timeControlObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] observedPlayer, _ in
+      let observedStatus = observedPlayer.timeControlStatus
+      let wasSuspended = self?.playbackSuspended ?? false
       DispatchQueue.main.async {
-        self?.sendStatusChange()
+        guard let self, self.sourceGeneration == generation else { return }
+        // Native remote transport changes must update intent too. Ignore a
+        // queued transition if the player has already moved to another state.
+        if !wasSuspended && !self.playbackSuspended && observedPlayer.timeControlStatus == observedStatus && observedPlayer.currentItem?.status == .readyToPlay {
+          self.shouldPlay = observedStatus != .paused
+        }
+        self.sendStatusChange()
       }
     }
 
+    #if os(iOS)
     externalPlaybackObservation = player.observe(\.isExternalPlaybackActive, options: [.new]) { [weak self] _, _ in
       DispatchQueue.main.async {
-        self?.sendStatusChange()
+        guard let self, self.sourceGeneration == generation else { return }
+        self.sendStatusChange()
       }
     }
+
+    #endif
 
     // The exact first-frame signal: the view controller has a video frame
     // ready for display. `.initial` covers an adopted preloaded item that is
@@ -374,17 +557,17 @@ final class MuxVideoView: ExpoView {
         return
       }
       DispatchQueue.main.async {
-        guard let self, !self.didEmitFirstFrame else {
+        guard let self, self.sourceGeneration == generation, !self.didEmitFirstFrame else {
           return
         }
         self.didEmitFirstFrame = true
-        self.onFirstFrame(["playbackId": self.currentPlaybackId ?? ""])
+        self.onFirstFrame(self.sourceEventPayload(["playbackId": self.currentPlaybackId ?? ""]))
       }
     }
 
     NotificationCenter.default.addObserver(
       self,
-      selector: #selector(handlePlaybackEnded),
+      selector: #selector(handlePlaybackEnded(_:)),
       name: .AVPlayerItemDidPlayToEndTime,
       object: player.currentItem
     )
@@ -406,14 +589,14 @@ final class MuxVideoView: ExpoView {
     case .readyToPlay:
       if !didEmitSourceLoad {
         didEmitSourceLoad = true
-        onSourceLoad([
+        onSourceLoad(sourceEventPayload([
           "playbackId": currentPlaybackId ?? "",
           "duration": durationSeconds(),
           "captionTracks": captionTracksPayload(),
           "selectedCaptionTrackId": selectedCaptionTrackId() ?? NSNull(),
           "audioTracks": audioTracksPayload(),
           "selectedAudioTrackId": selectedAudioTrackId() ?? NSNull(),
-        ])
+        ]))
       }
       loadLegibleGroupIfNeeded(for: item)
       applyCaptionStyle()
@@ -422,19 +605,15 @@ final class MuxVideoView: ExpoView {
       }
       sendStatusChange()
     case .failed:
-      let message = item.error?.localizedDescription ?? "Mux playback failed."
-      onSourceError([
-        "playbackId": currentPlaybackId ?? "",
-        "message": message,
-        "code": item.error.map { "\(($0 as NSError).code)" } ?? "",
-      ])
-      sendStatusChange(status: "error", error: message)
+      reportPlaybackError(message: "Mux playback failed. Check connectivity and playback authorization.",
+        code: item.error.map { "\(($0 as NSError).code)" } ?? "PLAYBACK_FAILED")
     default:
       sendStatusChange(status: "loading")
     }
   }
 
-  @objc private func handlePlaybackEnded() {
+  @objc private func handlePlaybackEnded(_ notification: Notification) {
+    guard let item = notification.object as? AVPlayerItem, item === playerViewController.player?.currentItem else { return }
     if loop {
       seekTo(0)
       play()
@@ -447,13 +626,22 @@ final class MuxVideoView: ExpoView {
   }
 
   @objc private func handlePlaybackFailed(_ notification: Notification) {
+    guard let item = notification.object as? AVPlayerItem, item === playerViewController.player?.currentItem else { return }
     let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error
-    let message = error?.localizedDescription ?? "Mux playback failed."
-    onSourceError([
-      "playbackId": currentPlaybackId ?? "",
-      "message": message,
-      "code": error.map { "\(($0 as NSError).code)" } ?? "",
-    ])
+    reportPlaybackError(message: "Mux playback failed. Check connectivity and playback authorization.",
+      code: error.map { "\(($0 as NSError).code)" } ?? "PLAYBACK_FAILED")
+  }
+
+  private func reportPlaybackError(message: String, code: String) {
+    sourceError = message
+    guard !didReportError else { return }
+    didReportError = true
+    #if os(tvOS)
+    if let name = selfMonitoredPlayerName {
+      MUXSDKStats.dispatchError(code, withMessage: message, forPlayer: name)
+    }
+    #endif
+    onSourceError(sourceEventPayload(["playbackId": currentPlaybackId ?? "", "message": message, "code": code]))
     sendStatusChange(status: "error", error: message)
   }
 
@@ -463,14 +651,25 @@ final class MuxVideoView: ExpoView {
     player?.currentItem?.preferredForwardBufferDuration = startupBufferDuration
     player?.isMuted = muted
     player?.volume = volume
+    #if os(iOS)
     player?.allowsExternalPlayback = true
     player?.usesExternalPlaybackWhileExternalScreenIsActive = true
+    #endif
     if shouldPlay {
       startPlaybackIfPossible()
     }
   }
 
+  private var playbackSuspended: Bool {
+    #if os(tvOS)
+    return applicationInactive || window == nil
+    #else
+    return false
+    #endif
+  }
+
   private func startPlaybackIfPossible() {
+    guard !playbackSuspended else { return }
     guard let player = playerViewController.player else {
       return
     }
@@ -486,6 +685,12 @@ final class MuxVideoView: ExpoView {
   }
 
   private func releasePlayer() {
+    sourceGeneration = UUID()
+    sourceError = nil
+    didReportError = false
+    stopTimeUpdates()
+    if let observer = mediaSelectionObserver { NotificationCenter.default.removeObserver(observer) }
+    mediaSelectionObserver = nil
     NotificationCenter.default.removeObserver(self)
     statusObservation = nil
     timeControlObservation = nil
@@ -495,14 +700,17 @@ final class MuxVideoView: ExpoView {
       MUXSDKStats.destroyPlayer(selfMonitoredPlayerName)
       self.selfMonitoredPlayerName = nil
     }
+    #if os(iOS)
     playerViewController.stopMonitoring()
+    #endif
     playerViewController.player?.pause()
+    playerViewController.player?.replaceCurrentItem(with: nil)
     playerViewController.player = nil
   }
 
   private func startTimeUpdates() {
     stopTimeUpdates()
-    guard window != nil else {
+    guard window != nil, !playbackSuspended, playerViewController.player != nil else {
       return
     }
     timeUpdateTimer = Timer.scheduledTimer(withTimeInterval: timeUpdateInterval, repeats: true) { [weak self] _ in
@@ -515,17 +723,31 @@ final class MuxVideoView: ExpoView {
     timeUpdateTimer = nil
   }
 
+  /// Identity is copied into each dispatched payload, so events already queued
+  /// across the bridge can be rejected after replacing the same playback ID.
+  private func sourceEventPayload(_ payload: [String: Any]) -> [String: Any] {
+    var event = payload
+    event["playbackId"] = currentPlaybackId ?? ""
+    if let currentSourceId { event["sourceId"] = currentSourceId }
+    return event
+  }
+
   private func sendTimeUpdate() {
-    onTimeUpdate([
+    onTimeUpdate(sourceEventPayload([
+      "playbackId": currentPlaybackId ?? "",
       "currentTime": currentTimeSeconds(),
       "duration": durationSeconds(),
       "bufferedPosition": bufferedPositionSeconds(),
-    ])
+    ]))
   }
 
   private func sendStatusChange(status: String? = nil, error: String? = nil) {
+    guard currentPlaybackId != nil || status == "idle" else { return }
+    let resolvedStatus = status ?? inferStatus()
     var payload: [String: Any] = [
-      "status": status ?? inferStatus(),
+      "status": resolvedStatus,
+      "playbackIntentRevision": playbackIntentRevision,
+      "playbackId": currentPlaybackId ?? "",
       "currentTime": currentTimeSeconds(),
       "duration": durationSeconds(),
       "bufferedPosition": bufferedPositionSeconds(),
@@ -537,25 +759,38 @@ final class MuxVideoView: ExpoView {
       "selectedCaptionTrackId": selectedCaptionTrackId() ?? NSNull(),
       "audioTracks": audioTracksPayload(),
       "selectedAudioTrackId": selectedAudioTrackId() ?? NSNull(),
-      "externalPlaybackActive": playerViewController.player?.isExternalPlaybackActive ?? false,
+      "externalPlaybackActive": externalPlaybackActive(),
       "isLive": isLiveStream(),
       "seekableStart": seekableRange().start,
       "seekableEnd": seekableRange().end,
     ]
 
-    if let error {
+    // Loading may be emitted before Expo applies the playWhenReady prop.
+    if resolvedStatus != "loading" && resolvedStatus != "ready" {
+      payload["playWhenReady"] = shouldPlay
+    }
+    if let error = error ?? sourceError {
       payload["error"] = error
     }
 
-    onStatusChange(payload)
-    onPlayingChange(["isPlaying": payload["status"] as? String == "playing"])
+    onStatusChange(sourceEventPayload(payload))
+    onPlayingChange(sourceEventPayload(["isPlaying": payload["status"] as? String == "playing"]))
 
     if nowPlayingEnabled {
       updateNowPlayingInfo()
     }
   }
 
+  private func externalPlaybackActive() -> Bool {
+    #if os(iOS)
+    return playerViewController.player?.isExternalPlaybackActive ?? false
+    #else
+    return false
+    #endif
+  }
+
   private func inferStatus() -> String {
+    if sourceError != nil { return "error" }
     guard let player = playerViewController.player else {
       return currentPlaybackId == nil ? "idle" : "loading"
     }
@@ -607,10 +842,10 @@ final class MuxVideoView: ExpoView {
     }
     didLoadLegibleGroup = true
     let asset = item.asset
-    let requestedFingerprint = sourceFingerprint
+    let requestedGeneration = sourceGeneration
     asset.loadValuesAsynchronously(forKeys: ["availableMediaCharacteristicsWithMediaSelectionOptions"]) { [weak self] in
       DispatchQueue.main.async {
-        guard let self, self.sourceFingerprint == requestedFingerprint else {
+        guard let self, self.sourceGeneration == requestedGeneration else {
           return
         }
         self.sendStatusChange()
@@ -764,6 +999,10 @@ final class MuxVideoView: ExpoView {
   // MARK: - Now Playing / lock-screen controls
 
   func setEnableNowPlaying(_ enabled: Bool) {
+    #if os(tvOS)
+    // AVKit owns system transport commands on TV; avoid duplicate handlers.
+    return
+    #else
     guard enabled != nowPlayingEnabled else {
       return
     }
@@ -778,6 +1017,7 @@ final class MuxVideoView: ExpoView {
       unregisterRemoteCommands()
       clearNowPlayingInfo()
     }
+    #endif
   }
 
   private func configureAudioSession() {
@@ -790,11 +1030,15 @@ final class MuxVideoView: ExpoView {
   /// AVPlayer never engages external video playback.
   private func configurePlaybackAudioSession() {
     let session = AVAudioSession.sharedInstance()
+    #if os(iOS)
     do {
       try session.setCategory(.playback, mode: .moviePlayback, policy: .longFormVideo)
     } catch {
       try? session.setCategory(.playback, mode: .moviePlayback)
     }
+    #else
+    try? session.setCategory(.playback, mode: .moviePlayback)
+    #endif
   }
 
   private func registerRemoteCommands() {
@@ -879,7 +1123,7 @@ final class MuxVideoView: ExpoView {
       return
     }
     loadedArtworkURL = url
-    let requestedFingerprint = sourceFingerprint
+    let requestedGeneration = sourceGeneration
     URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
       guard
         let data,
@@ -889,7 +1133,7 @@ final class MuxVideoView: ExpoView {
       }
       let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
       DispatchQueue.main.async {
-        guard let self, self.sourceFingerprint == requestedFingerprint else {
+        guard let self, self.sourceGeneration == requestedGeneration else {
           return
         }
         self.nowPlayingArtwork = artwork
