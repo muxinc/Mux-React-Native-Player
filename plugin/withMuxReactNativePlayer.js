@@ -58,8 +58,19 @@ function withMuxReactNativePlayer(config, props = {}) {
   });
 
   config = withGradleProperties(config, mod => {
-    setGradleProperty(mod.modResults, 'android.compileSdkVersion', ANDROID_COMPILE_SDK);
-    setGradleProperty(mod.modResults, 'android.suppressUnsupportedCompileSdk', ANDROID_COMPILE_SDK);
+    const currentCompileSdk = Number(
+      mod.modResults.find(
+        item => item.type === 'property' && item.key === 'android.compileSdkVersion'
+      )?.value
+    );
+    if (!(currentCompileSdk >= Number(ANDROID_COMPILE_SDK))) {
+      setGradleProperty(mod.modResults, 'android.compileSdkVersion', ANDROID_COMPILE_SDK);
+      setGradleProperty(
+        mod.modResults,
+        'android.suppressUnsupportedCompileSdk',
+        ANDROID_COMPILE_SDK
+      );
+    }
     // NOTE: we deliberately do NOT force kotlinVersion/kspVersion. Pinning the
     // app-wide Kotlin version broke other libraries (e.g. react-native-gesture-handler,
     // which relies on Kotlin synthetic-property access that newer Kotlin rejects).
