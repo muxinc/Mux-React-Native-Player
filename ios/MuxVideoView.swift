@@ -459,6 +459,8 @@ final class MuxVideoView: ExpoView {
 
   private func applyPlayerConfiguration() {
     let player = playerViewController.player
+    player?.audiovisualBackgroundPlaybackPolicy =
+      nowPlayingEnabled ? .continuesIfPossible : .automatic
     player?.automaticallyWaitsToMinimizeStalling = true
     player?.currentItem?.preferredForwardBufferDuration = startupBufferDuration
     player?.isMuted = muted
@@ -768,6 +770,8 @@ final class MuxVideoView: ExpoView {
       return
     }
     nowPlayingEnabled = enabled
+    playerViewController.player?.audiovisualBackgroundPlaybackPolicy =
+      enabled ? .continuesIfPossible : .automatic
 
     if enabled {
       configureAudioSession()
