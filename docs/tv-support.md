@@ -1,6 +1,7 @@
 # Apple TV and Android TV support
 
-Status: implementation preview; physical-device release qualification is pending.
+Status: beta (`0.2.0-beta.0` on the npm `beta` tag); physical-device release qualification is pending.
+Install it with `npm install @mux/mux-react-native-player@beta`. The `latest` tag stays on 0.1.x until then.
 The [TV PRD](TV-PRD.md) tracks acceptance evidence and remaining release gates.
 Recorded automated checks use simulators and emulators.
 

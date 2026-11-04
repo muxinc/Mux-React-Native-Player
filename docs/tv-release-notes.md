@@ -1,8 +1,15 @@
-# Draft release notes — TV preview
+# Release notes — 0.2.0-beta.0 (TV beta)
 
-Proposed next version: `0.2.0-tv.0`, followed by `0.2.0` after qualification.
-The package remains `0.1.15` while this change is reviewed. No version bump,
-registry publication, signed distribution archive, or store submission has occurred.
+`0.2.0-beta.0` is published to npm under the `beta` tag. The `latest` tag stays on
+0.1.x, so a normal install does not pick up TV support. Install the beta explicitly:
+
+```sh
+npm install @mux/mux-react-native-player@beta
+npx expo install expo-font
+```
+
+Fixes ship as `0.2.0-beta.N`. `0.2.0` moves to `latest` once the physical-device
+checks below pass. No signed distribution archive or store submission has occurred.
 
 ## Added
 
@@ -29,6 +36,10 @@ repository now uses `react-native-tvos@0.86.2-0` consistently across its workspa
 installations must avoid a second stock React Native runtime. The example's host
 compatibility plugin and patches are needed for this tested Android toolchain.
 
+The package now has a peer dependency on `expo-font`, which loads the TV controls'
+bundled fonts. npm installs it automatically; in an Expo app, run
+`npx expo install expo-font` so its version matches your SDK.
+
 TV `controls="custom"` now selects a remote-focused overlay with transport, seek
 previews, tracks/settings, and optional Robots panels. Native controls remain the
 default and can be selected explicitly. `controls="none"` remains
@@ -49,8 +60,8 @@ TV DRM is deferred by the confirmed release scope; public and signed playback sh
 ## Validation and release gate
 
 See [validation evidence](tv-validation.md) and the [tracked PRD](TV-PRD.md).
-Simulator and emulator playback checks support this implementation preview.
+Simulator and emulator playback checks support this beta.
 Physical remote navigation, signed/live fixtures, analytics, accessibility, sustained
 playback, performance, and the full mobile regression matrix remain required before
-production TV support is advertised. The package must pass final release review
-and receive publication authorization before these notes become a published release.
+`0.2.0` moves to `latest` and TV support is advertised as production-ready. Until
+then, treat the beta as a testing build.

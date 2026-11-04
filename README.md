@@ -8,7 +8,7 @@ A React native video player with built-in Mux Data and Mux Robots integrations. 
 
 - iOS: [`muxinc/mux-player-swift`](https://github.com/muxinc/mux-player-swift)
 - Android / Android TV: [`muxinc/mux-player-android`](https://github.com/muxinc/mux-player-android)
-- tvOS (preview): AVPlayer / AVPlayerViewController with Mux Data
+- tvOS (beta): AVPlayer / AVPlayerViewController with Mux Data
 
 ## Documentation
 
@@ -20,7 +20,7 @@ Full guides live in [`docs/`](https://github.com/muxinc/Mux-React-Native-Player/
 - [Feeds & Shorts](https://github.com/muxinc/Mux-React-Native-Player/blob/main/docs/feeds.md) — `useMuxVideoFeed`
 - [Mux Robots](https://github.com/muxinc/Mux-React-Native-Player/blob/main/docs/robots.md)
 
-- [TV Support](docs/tv-support.md) — capabilities, limitations, and [TV example setup](example-tv/README.md)
+- [TV Support](docs/tv-support.md) — beta, installed with `@mux/mux-react-native-player@beta`; capabilities, limitations, and [TV example setup](example-tv/README.md)
 
 ## Requirements
 
