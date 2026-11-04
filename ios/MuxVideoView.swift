@@ -168,7 +168,10 @@ final class MuxVideoView: ExpoView {
     // must identify the JS intent they acknowledge, even without a new source.
     if let intent = pendingPlaybackIntent {
       pendingPlaybackIntent = nil
-      if intent.revision >= playbackIntentRevision {
+      // Revisions count per JS player. A different source, such as a recycled
+      // view given another player, starts a new sequence; otherwise skip older intents.
+      let startsNewSource = hasPendingSource && pendingSource?.sourceId != currentSourceId
+      if startsNewSource || intent.revision >= playbackIntentRevision {
         playbackIntentRevision = intent.revision
         setPlayWhenReady(intent.playWhenReady)
       }

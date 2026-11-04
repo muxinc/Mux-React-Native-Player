@@ -1172,7 +1172,7 @@ function robotAvailability(robots?: MuxVideoRobotsConfig): Record<RobotsKind, bo
     summary: enabled && (!!robots?.summary || (!!robots?.assetId && !!robots.onSummarize)),
     chapters: enabled && (!!robots?.chapters?.length || (!!robots?.assetId && !!robots.onGenerateChapters)),
     moments: enabled && (!!robots?.keyMoments?.length || (!!robots?.assetId && !!robots.onFindKeyMoments)),
-    transcript: enabled && (!!robots?.transcript?.cues.length || (!!robots?.assetId && !!robots.onTranscribe)),
+    transcript: enabled && (!!robots?.transcript?.cues?.length || (!!robots?.assetId && !!robots.onTranscribe)),
   };
 }
 

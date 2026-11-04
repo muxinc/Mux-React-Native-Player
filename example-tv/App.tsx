@@ -101,7 +101,8 @@ export default function App() {
             accessibilityLabel={`${item.title}. ${item.detail}`}
             hasTVPreferredFocus={item.id === lastSelected}
             onFocus={() => setFocused(item.id)}
-            onBlur={() => setFocused(null)}
+            // On TV, blur can arrive after the next card's focus; clear only our own highlight.
+            onBlur={() => setFocused(current => (current === item.id ? null : current))}
             onPress={() => { setLastSelected(item.id); setActive(item.id); }}
             style={[styles.card, focused === item.id && styles.focusedCard]}
           >

@@ -290,14 +290,19 @@ class MuxVideoView(
   fun applyPendingSource() {
     pendingPlaybackIntent?.let { intent ->
       pendingPlaybackIntent = null
-      // Commit the revision before applying intent: synchronous player callbacks
-      // acknowledge this atomic prop, while earlier command events keep the old revision.
-      val needsAcknowledgment = playbackIntentRevision != intent.revision && shouldPlay == intent.playWhenReady
-      playbackIntentRevision = intent.revision
-      setPlayWhenReady(intent.playWhenReady)
-      // An imperative command may already have applied this value. Acknowledge
-      // the new revision once even if setPlayWhenReady has no state change to emit.
-      if (needsAcknowledgment) sendStatusChange()
+      // Revisions count per JS player. A different source, such as a recycled
+      // view given another player, starts a new sequence; otherwise skip older intents.
+      val startsNewSource = hasPendingSource && pendingSource?.sourceId != currentSourceId
+      if (startsNewSource || intent.revision >= playbackIntentRevision) {
+        // Commit the revision before applying intent: synchronous player callbacks
+        // acknowledge this atomic prop, while earlier command events keep the old revision.
+        val needsAcknowledgment = playbackIntentRevision != intent.revision && shouldPlay == intent.playWhenReady
+        playbackIntentRevision = intent.revision
+        setPlayWhenReady(intent.playWhenReady)
+        // An imperative command may already have applied this value. Acknowledge
+        // the new revision once even if setPlayWhenReady has no state change to emit.
+        if (needsAcknowledgment) sendStatusChange()
+      }
     }
     if (!hasPendingSource) return
     val source = pendingSource
@@ -684,7 +689,8 @@ class MuxVideoView(
   }
 
   private fun sendStatusChange(status: String? = null, error: String? = null) {
-    if (currentPlaybackId.isNullOrBlank()) return
+    // release() clears the source first; still report its idle status, as iOS does.
+    if (currentPlaybackId.isNullOrBlank() && status != "idle") return
     val resolvedStatus = status ?: inferStatus()
     val payload = mutableMapOf<String, Any>(
       "playbackId" to currentPlaybackId.orEmpty(),
