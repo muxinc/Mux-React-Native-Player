@@ -177,14 +177,17 @@ describe('TV native configuration', () => {
 });
 
 describe('local TV fixtures', () => {
-  it('offers all four supplied sample panels in custom controls and the same public video with native controls', async () => {
+  it('offers all four bundled Robots panels in custom controls and the same public video with native controls', async () => {
     vi.resetModules();
     const { videos } = await import('../example-tv/fixtures');
     const custom = videos.find(video => video.id === 'tears-of-steel');
     const native = videos.find(video => video.id === 'native-controls');
     expect(custom?.controls).toBe('custom');
-    expect(custom?.robots?.summary?.title).toContain('Sample');
+    expect(custom?.robots?.summary?.title).toBeTruthy();
     expect(custom?.robots?.summary?.description).toBeTruthy();
+    // The card label states the bundled counts; keep it in step with the data.
+    expect(custom?.detail).toContain(`${custom?.robots?.chapters?.length} chapters`);
+    expect(custom?.detail).toContain(`${custom?.robots?.keyMoments?.length} moments`);
     expect(custom?.robots?.chapters?.length).toBeGreaterThan(0);
     expect(custom?.robots?.keyMoments?.length).toBeGreaterThan(0);
     expect(custom?.robots?.transcript?.cues.length).toBeGreaterThan(0);
@@ -212,7 +215,9 @@ describe('local TV fixtures', () => {
     expect(cards).toHaveLength(included ? 1 : 0);
     if (included) {
       const connected = cards[0];
-      expect(videos[0]).toBe(connected);
+      // The bundled Tears of Steel card stays first; the live card follows it.
+      expect(videos[0].id).toBe('tears-of-steel');
+      expect(videos[1]).toBe(connected);
       expect(connected.controls).toBe('custom');
       expect(connected.source).toMatchObject({ assetId, playbackId });
       expect(connected.robots?.onSummarize).toBeTypeOf('function');

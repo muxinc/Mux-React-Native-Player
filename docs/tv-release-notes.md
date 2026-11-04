@@ -18,7 +18,7 @@ registry publication, signed distribution archive, or store submission has occur
 - TV custom controls with storyboard seeking and separate focus/selection states.
 - Summary, Chapters, Moments, and Transcript panels with provided content or host
   callbacks, remote scrolling, safe errors/retry, source-scoped results, timed seeks
-  and focus restoration. The example includes labeled sample content.
+  and focus restoration. The example bundles completed Robots results for Tears of Steel.
 - Metro watch configuration for library source/assets in workspace and packed
   installs, so player edits no longer leave stale example bundles.
 

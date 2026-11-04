@@ -114,13 +114,16 @@ function getRobotsResult({ workflow, transform, load }, assetId) {
 }
 
 // Mux keeps jobs for 30 days; reuse a completed one instead of running it again.
+// The v1 list also returns jobs created through v0. Those cannot be fetched
+// through v1 and use the v0 output shape, so only reuse jobs with a v1 link.
 async function findOrCreateJob(workflow, assetId) {
   const query = new URLSearchParams({ workflow, asset_id: assetId, status: 'completed', limit: '25' });
-  const listed = await muxFetch(`/robots/v0/jobs?${query}`, { method: 'GET' });
+  const listed = await muxFetch(`/robots/v1/jobs?${query}`, { method: 'GET' });
   const existing = (Array.isArray(listed?.data) ? listed.data : [])
-    .find(job => job?.id && job.status === 'completed' && job.workflow === workflow);
+    .find(job => job?.id && job.status === 'completed' && job.workflow === workflow &&
+      String(job._links?.self?.href ?? '').startsWith('/robots/v1/'));
   if (existing) {
-    const job = getResponseData(await muxFetch(`/robots/v0/jobs/${workflow}/${existing.id}`, { method: 'GET' }));
+    const job = getResponseData(await muxFetch(`/robots/v1/jobs/${workflow}/${existing.id}`, { method: 'GET' }));
     if (job.parameters?.asset_id === assetId && job.outputs) {
       console.log(`Reusing completed ${workflow} job ${job.id} for ${assetId}.`);
       return job;
