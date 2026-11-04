@@ -132,7 +132,7 @@ async function findOrCreateJob(workflow, assetId) {
 }
 
 async function createAndPollJob(workflow, assetId) {
-  const created = await muxFetch(`/robots/v0/jobs/${workflow}`, {
+  const created = await muxFetch(`/robots/v1/jobs/${workflow}`, {
     method: 'POST',
     body: JSON.stringify({
       parameters: {
@@ -162,7 +162,7 @@ async function pollJob(workflow, initialJob) {
     }
 
     await delay(pollIntervalMs);
-    const result = await muxFetch(`/robots/v0/jobs/${workflow}/${job.id}`, { method: 'GET' });
+    const result = await muxFetch(`/robots/v1/jobs/${workflow}/${job.id}`, { method: 'GET' });
     job = getResponseData(result);
   }
 
@@ -213,8 +213,8 @@ function transformKeyMoments(job) {
   const moments = Array.isArray(outputs.moments) ? outputs.moments : [];
   return moments
     .map(moment => ({
-      startTime: moment.start_ms == null ? toNumber(moment.startTime) : toNumber(moment.start_ms) / 1000,
-      endTime: moment.end_ms == null ? toNumber(moment.endTime) : toNumber(moment.end_ms) / 1000,
+      startTime: toNumber(moment.start_time ?? moment.startTime),
+      endTime: toNumber(moment.end_time ?? moment.endTime),
       title: stringify(moment.title),
       description: stringify(moment.audible_narrative ?? moment.description ?? firstCueText(moment.cues)),
       score: toOptionalNumber(moment.overall_score ?? moment.score),
