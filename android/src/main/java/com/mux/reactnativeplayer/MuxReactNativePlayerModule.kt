@@ -11,12 +11,14 @@ class MuxReactNativePlayerModule : Module() {
 
     AsyncFunction("lockFullscreenLandscape") {
       runOnActivity { activity ->
+        if (activity.isTelevision()) return@runOnActivity
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
       }
     }
 
     AsyncFunction("unlockFullscreenOrientation") {
       runOnActivity { activity ->
+        if (activity.isTelevision()) return@runOnActivity
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
       }
     }
@@ -35,6 +37,10 @@ class MuxReactNativePlayerModule : Module() {
     }
 
     View(MuxVideoView::class) {
+      OnViewDidUpdateProps { view: MuxVideoView ->
+        view.applyPendingSource()
+      }
+
       OnViewDestroys { view: MuxVideoView ->
         view.release()
       }
@@ -86,6 +92,10 @@ class MuxReactNativePlayerModule : Module() {
 
       Prop("playWhenReady", false) { view: MuxVideoView, playWhenReady: Boolean ->
         view.setPlayWhenReady(playWhenReady)
+      }
+
+      Prop("playbackIntent") { view: MuxVideoView, intent: MuxPlaybackIntentRecord? ->
+        view.setPlaybackIntent(intent)
       }
 
       Prop("muted", false) { view: MuxVideoView, muted: Boolean ->

@@ -64,7 +64,7 @@ type MuxVideoMetadata = {
 | `contentFit` | `'contain' \| 'cover' \| 'fill'` | `'contain'` | How video fills the view |
 | `poster` | `boolean \| string \| { uri }` | auto | Poster before first frame. Omit/`true` = auto Mux thumbnail, `false` = none, string/`{uri}` = custom |
 | `posterTime` | `number` | — | Time (seconds) for the auto-generated poster frame |
-| `thumbnailPreviews` | `boolean` | `true` | Show storyboard thumbnail previews above the scrubber while dragging (custom controls) |
+| `thumbnailPreviews` | `boolean` | `true` | Show image previews during mobile scrubbing or TV remote seek preview |
 | `captionStyle` | `{ textColor?, backgroundColor?, fontScale? }` | OS default | Style natively-rendered captions. See [Accessibility](accessibility.md) |
 | `settingsMenu` | `boolean \| { speed?, quality? }` | `true` | Gear menu for playback speed & quality. `false` hides it; `{ speed: false }` / `{ quality: false }` hides one section |
 | `allowsFullscreen` | `boolean` | `true` | Fullscreen button + rotate-to-fullscreen ([setup required](orientation-and-fullscreen.md)) |
@@ -163,6 +163,12 @@ Available tracks arrive on `onSourceLoad` / `onStatusChange` as `captionTracks` 
 
 With `controls="custom"`, the CC button opens a panel with horizontally scrolling language chips — a **Captions** row (Off + one chip per track) and, when the asset has more than one audio track, an **Audio** row for dubbed audio.
 
+TV uses dedicated remote-focused controls and scrollable track/settings panels.
+Playing or paused, the overlay fades away after three seconds without input, leaving captions
+unobstructed; any remote press brings it back.
+See [TV support](tv-support.md) for platform differences, theme behavior and
+release qualification.
+
 ## Custom controls theming
 
 ```tsx
@@ -170,25 +176,24 @@ With `controls="custom"`, the CC button opens a panel with horizontally scrollin
   player={player}
   controls="custom"
   controlsTheme={{
-    accentColor: '#fa50b5',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    buttonBackgroundColor: 'rgba(255,255,255,0.15)',
-    panelBackgroundColor: 'rgba(20,28,38,0.72)', // frosted menu backdrop (settings/CC/robots)
-    buttonTextColor: '#ffffff',
+    accentColor: '#0072e3', // live dot, AirPlay while active, TV scrub speed badge
+    buttonBackgroundColor: 'rgba(36,38,40,0.8)', // play/seek and top-row circles
+    panelBackgroundColor: 'rgba(36,38,40,0.8)', // bottom bar, Robots, settings and CC panels
+    buttonTextColor: '#ffffff', // icon tint
     textColor: '#ffffff',
-    progressTrackColor: '#fa50b5',
-    bufferedTrackColor: 'rgba(255,255,255,0.35)',
-    trackColor: 'rgba(255,255,255,0.2)',
-    trackHeight: 4,
-    buttonSize: 40,
-    playButtonSize: 56,
-    fullscreenButtonSize: 36,
-    seekSeconds: 10, // double-tap / skip amount
+    progressTrackColor: 'rgba(0,114,227,0.8)',
+    bufferedTrackColor: 'rgba(208,210,200,0.6)',
+    trackColor: 'rgba(208,210,200,0.3)',
+    seekSeconds: 10, // skip amount, also shown inside the seek icons
+    // Sizes default to the design and scale down on small players:
+    // trackHeight, buttonSize (seek circles), playButtonSize, fullscreenButtonSize (bar icons)
   }}
 />
 ```
 
-All fields are optional; omitted values fall back to the default dark theme.
+All fields are optional; the defaults follow the Mux player design (charcoal surfaces at
+80% opacity, core-blue progress). Size fields are in points and, when set, override the
+design's size for that element.
 
 ## AirPlay & casting
 

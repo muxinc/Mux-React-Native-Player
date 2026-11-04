@@ -5,7 +5,6 @@ import {
   Image,
   LayoutChangeEvent,
   PanResponder,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,7 +12,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import type { AccessibilityActionEvent, ImageSourcePropType } from 'react-native';
+import type { AccessibilityActionEvent } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import type {
@@ -37,9 +36,40 @@ import {
   tileForTime,
   type ParsedStoryboard,
 } from './storyboard';
+import {
+  CaptionsGlyph,
+  ConcaveCorner,
+  ControlIcon,
+  copySummary,
+  chipStyle,
+  chipTextStyle,
+  defaultHiddenRobots,
+  designFontStyle,
+  DESIGN,
+  DESIGN_COLORS,
+  FADE_HEIGHT,
+  FadingCardRow,
+  FONT,
+  formatClock,
+  linkTextStyle,
+  mobileDesignScale,
+  ProgressTrack,
+  px,
+  ROBOTS_LABELS,
+  ROBOTS_ORDER,
+  RobotsGlyph,
+  SeekGlyph,
+  summaryCopyAction,
+  type RobotsKind,
+  type TrackMarks,
+  useDesignFonts,
+} from './controlsDesign';
 
-type RequiredControlsTheme = Required<MuxVideoControlsTheme>;
-type RobotsPanel = 'summary' | 'chapters' | 'moments' | 'transcript';
+type ControlsColors = Required<
+  Omit<MuxVideoControlsTheme, 'buttonSize' | 'playButtonSize' | 'fullscreenButtonSize' | 'trackHeight'>
+>;
+type RobotsPanel = RobotsKind;
+type Scale = (value: number) => number;
 
 type MuxVideoControlsProps = {
   player: MuxVideoPlayer;
@@ -79,32 +109,21 @@ const SEEK_ACCESSIBILITY_ACTIONS = [
   { name: 'increment', label: 'Skip forward' },
   { name: 'decrement', label: 'Skip back' },
 ];
-const robotImages = {
-  summary: require('../assets/MuxRobot_03.gif'),
-  chapters: require('../assets/MuxRobot_02.gif'),
-  moments: require('../assets/MuxRobot_05.gif'),
-  transcript: require('../assets/MuxRobot_04.gif'),
-} as const;
+/** Below this much room under the tab, Summary and Transcript take over the bar too. */
+const COMPACT_PANEL_HEIGHT = 380;
 
-const defaultTheme: RequiredControlsTheme = {
-  accentColor: '#FA50B5',
+const defaultColors: ControlsColors = {
+  accentColor: DESIGN_COLORS.accent,
   backgroundColor: 'transparent',
-  buttonBackgroundColor: 'rgba(20, 28, 38, 0.28)',
-  panelBackgroundColor: 'rgba(20, 28, 38, 0.72)',
-  buttonTextColor: '#f8fbff',
-  buttonSize: 48,
-  playButtonSize: 72,
-  fullscreenButtonSize: 26,
-  progressTrackColor: '#FA50B5',
-  bufferedTrackColor: 'rgba(248, 251, 255, 0.28)',
-  trackColor: 'rgba(248, 251, 255, 0.16)',
-  trackHeight: 4,
-  textColor: '#f8fbff',
+  buttonBackgroundColor: DESIGN_COLORS.surface,
+  panelBackgroundColor: DESIGN_COLORS.surface,
+  buttonTextColor: DESIGN_COLORS.text,
+  progressTrackColor: DESIGN_COLORS.progress,
+  bufferedTrackColor: DESIGN_COLORS.buffered,
+  trackColor: DESIGN_COLORS.track,
+  textColor: DESIGN_COLORS.text,
   seekSeconds: 10,
 };
-
-const frostBorderColor = 'rgba(255, 255, 255, 0.18)';
-const frostBorderWidth = StyleSheet.hairlineWidth * 2;
 
 export function MuxVideoControls({
   player,
@@ -129,14 +148,16 @@ export function MuxVideoControls({
   onGeneratedKeyMomentsChange,
   onGeneratedTranscriptChange,
 }: MuxVideoControlsProps) {
-  const controlsTheme = React.useMemo<RequiredControlsTheme>(
-    () => ({ ...defaultTheme, ...theme }),
+  const colors = React.useMemo<ControlsColors>(
+    () => ({ ...defaultColors, ...stripUndefined(theme) }),
     [theme]
   );
 
   const [hidden, setHidden] = React.useState(false);
   const [interactionTick, setInteractionTick] = React.useState(0);
   const [trackWidth, setTrackWidth] = React.useState(0);
+  const [trackOffsetX, setTrackOffsetX] = React.useState(0);
+  const [barWidth, setBarWidth] = React.useState(0);
   const [containerWidth, setContainerWidth] = React.useState(0);
   const [containerHeight, setContainerHeight] = React.useState(0);
   const [containerPageX, setContainerPageX] = React.useState(0);
@@ -146,8 +167,10 @@ export function MuxVideoControls({
   const [activeRobotsPanel, setActiveRobotsPanel] = React.useState<RobotsPanel | null>(null);
   const [robotsLoading, setRobotsLoading] = React.useState<RobotsPanel | null>(null);
   const [robotsError, setRobotsError] = React.useState<string | null>(null);
+  const [robotsVisibility, setRobotsVisibility] = React.useState<Partial<Record<RobotsKind, boolean>>>({});
   const [captionsOpen, setCaptionsOpen] = React.useState(false);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [moreOpen, setMoreOpen] = React.useState(false);
   const robotsRequestRef = React.useRef(0);
   const controlsRootRef = React.useRef<View>(null);
   const opacity = React.useRef(new Animated.Value(1)).current;
@@ -204,7 +227,16 @@ export function MuxVideoControls({
   const canTranscribe =
     robotsEnabled &&
     ((transcript?.cues.length ?? 0) > 0 || (!!robotsAssetId && !!robots?.onTranscribe));
-  const hasRobotsActions = canSummarize || canGenerateChapters || canFindKeyMoments || canTranscribe;
+  const availableRobots = ROBOTS_ORDER.filter(kind => ({
+    summary: canSummarize,
+    chapters: canGenerateChapters,
+    moments: canFindKeyMoments,
+    transcript: canTranscribe,
+  })[kind]);
+  const hasRobotsActions = availableRobots.length > 0;
+  const defaultHidden = defaultHiddenRobots(availableRobots);
+  const isRobotVisible = (kind: RobotsKind) => robotsVisibility[kind] ?? !defaultHidden.includes(kind);
+  const visibleRobots = availableRobots.filter(isRobotVisible);
   const isRobotsFocused = activeRobotsPanel !== null;
   const hasCaptionTracks = captionTracks.length > 0;
   // A single audio track offers no alternative language, so hide the section.
@@ -231,6 +263,12 @@ export function MuxVideoControls({
     }
   }, [showCaptionsButton]);
 
+  React.useEffect(() => {
+    if (!hasRobotsActions) {
+      setMoreOpen(false);
+    }
+  }, [hasRobotsActions]);
+
   const visibleChapters = React.useMemo(
     () =>
       chapters
@@ -247,6 +285,29 @@ export function MuxVideoControls({
         .slice()
         .sort((a, b) => a.startTime - b.startTime),
     [keyMoments]
+  );
+
+  // Chapter and key-moment marks show only while their panel is open, so the
+  // timeline stays uncluttered the rest of the time.
+  const trackMarks = React.useMemo<TrackMarks>(
+    () =>
+      duration > 0
+        ? {
+            // The first chapter starts the timeline, so it is not a boundary.
+            markers:
+              activeRobotsPanel === 'chapters'
+                ? visibleChapters.slice(1).map(chapter => clamp(chapter.startTime / duration, 0, 1))
+                : [],
+            ranges:
+              activeRobotsPanel === 'moments'
+                ? visibleKeyMoments.map(moment => [
+                    clamp(moment.startTime / duration, 0, 1),
+                    clamp(moment.endTime / duration, 0, 1),
+                  ])
+                : [],
+          }
+        : { markers: [], ranges: [] },
+    [activeRobotsPanel, duration, visibleChapters, visibleKeyMoments]
   );
 
   const activeChapter = React.useMemo(() => {
@@ -302,38 +363,64 @@ export function MuxVideoControls({
     containerWidth > 0
       ? Math.max(0, containerWidth - offscreenLeftInset - offscreenRightInset)
       : 0;
-  const isCompactHeight = containerHeight > 0 && containerHeight < 240;
-  const isNarrowControls =
-    isCompactHeight ||
-    isPortraitControls ||
-    (visibleControlsWidth > 0 && visibleControlsWidth < 360);
-  const baseHorizontalInset =
-    visibleControlsWidth > 0 && visibleControlsWidth < 340 ? 10 : isPortraitControls ? 12 : 16;
-  const timelineLeftInset = baseHorizontalInset + offscreenLeftInset;
-  const timelineRightInset = baseHorizontalInset + offscreenRightInset;
-  // Keep the bottom controls above an app-level tab bar in tall, feed-style
+  const scale = mobileDesignScale(visibleControlsWidth, containerHeight);
+  const u: Scale = value => value * scale;
+  const leftInset = u(DESIGN.inset) + offscreenLeftInset;
+  const rightInset = u(DESIGN.inset) + offscreenRightInset;
+  const contentWidth = Math.max(0, containerWidth - leftInset - rightInset);
+  // Tall (9:16) layouts get a proportional top offset — a fixed one hugs the
+  // status bar and strands the UI far from the content.
+  const topInset = px(isPortraitControls
+    ? Math.min(140, Math.max(24, Math.floor(containerHeight * 0.16)))
+    : u(DESIGN.inset));
+  // Keep the bottom bar above an app-level tab bar in tall, feed-style
   // layouts. Scale the inset slightly with the viewport while keeping it in
   // the range of common iOS and Android tab bars.
-  const timelineBottomInset = isPortraitControls
+  const bottomInset = isPortraitControls
     ? Math.min(96, Math.max(72, Math.floor(containerHeight * 0.1)))
-    : 6;
-  const centerHorizontalPadding = isNarrowControls ? 10 : 16;
-  const centerHorizontalGap = isNarrowControls ? 18 : 28;
-  const trackHorizontalPadding = isNarrowControls ? 8 : 10;
-  const trackVerticalPadding = isNarrowControls ? 8 : 10;
-  const timePillHorizontalPadding = isNarrowControls ? 8 : 10;
-  const timeFontSize = isNarrowControls ? 11 : 12;
-  const buttonSize = Math.max(36, isNarrowControls ? 40 : controlsTheme.buttonSize);
-  const playButtonSize = Math.max(
-    buttonSize,
-    isCompactHeight ? 52 : isNarrowControls ? 56 : controlsTheme.playButtonSize
+    : u(DESIGN.bottomInset);
+  const barHeight = px(u(DESIGN.barHeight));
+  const barTop = containerHeight - bottomInset - barHeight;
+  const panelTop = px(topInset + u(DESIGN.tabHeight));
+  const iconSize = theme?.fullscreenButtonSize ?? u(DESIGN.icon);
+  const playSize = theme?.playButtonSize ?? u(DESIGN.playCircle);
+  const seekSize = theme?.buttonSize ?? u(DESIGN.seekCircle);
+  const trackHeight = theme?.trackHeight ?? u(DESIGN.trackHeight);
+  // Centre the transport on the video unless it would crowd the bar; then
+  // centre it between the top row and the bar, as the inline phone frame does.
+  const centerY =
+    containerHeight / 2 + playSize / 2 + u(DESIGN.inset) <= barTop
+      ? containerHeight / 2
+      : (topInset + u(DESIGN.circle) + barTop) / 2;
+  const roomUnderTab = barTop - u(DESIGN.panelGap) - panelTop;
+  const textPanelTakesBar =
+    (activeRobotsPanel === 'summary' || activeRobotsPanel === 'transcript') &&
+    roomUnderTab < u(COMPACT_PANEL_HEIGHT);
+  const showBar = !textPanelTakesBar;
+  const robotsPanelMaxHeight = Math.max(
+    u(DESIGN.cardHeight),
+    (textPanelTakesBar ? containerHeight - bottomInset : barTop - u(DESIGN.panelGap)) - panelTop
   );
-  const centerVerticalGap = isCompactHeight ? 8 : isPortraitControls ? 14 : 20;
-  // Height of the robots button row: 18px robot image + 5px vertical padding
-  // and 1px border on each side, plus the row's own 1px vertical padding.
-  const robotsRowHeight = 32;
-  const fullscreenButtonSize = Math.max(22, isNarrowControls ? 24 : controlsTheme.fullscreenButtonSize);
-  const trackHeight = Math.max(3, controlsTheme.trackHeight);
+  // The settings and captions panels sit above the bar; cap them to the space
+  // left in the video view so their tops don't get clipped on inline layouts.
+  const anchoredPanelMaxHeight = Math.max(u(160), barTop - u(DESIGN.panelGap) - topInset);
+  const timeInTopRow = !!activeChapter && !isLive;
+  // The "…" menu hangs from the top-right and the settings/captions panels
+  // stand on the bar's right end; on short players they would overlap, so
+  // there only one opens at a time (landscape frames show both together).
+  const stackHeight = (rows: number, rowHeight: number) =>
+    u(DESIGN.menuPadding) * (rows + 1) + rows * u(rowHeight);
+  const anchoredRows = Math.max(
+    1,
+    (showQualityControl ? 1 : 0) + (showSpeedControl ? 1 : 0),
+    (hasCaptionTracks ? 1 : 0) + (hasAudioTrackChoices ? 1 : 0)
+  );
+  const menusCollide =
+    topInset + u(DESIGN.circle) + stackHeight(availableRobots.length, DESIGN.toggle) + u(DESIGN.panelGap) >
+    barTop - u(DESIGN.panelGap) - stackHeight(anchoredRows, DESIGN.chipHeight);
+  // Those same short players have no room for the transport beside an open
+  // menu, so the portrait frames drop it while one is showing.
+  const menuCoversTransport = menusCollide && (moreOpen || settingsOpen || captionsOpen);
 
   const fadeOut = React.useCallback(() => {
     Animated.timing(opacity, {
@@ -378,6 +465,11 @@ export function MuxVideoControls({
     keepAlive();
   }, [keepAlive]);
 
+  const dismissMoreMenu = React.useCallback(() => {
+    setMoreOpen(false);
+    keepAlive();
+  }, [keepAlive]);
+
   const handleBackgroundTap = React.useCallback(() => {
     if (captionsOpen) {
       dismissCaptionsPanel();
@@ -386,6 +478,11 @@ export function MuxVideoControls({
 
     if (settingsOpen) {
       dismissSettingsPanel();
+      return;
+    }
+
+    if (moreOpen) {
+      dismissMoreMenu();
       return;
     }
 
@@ -400,15 +497,15 @@ export function MuxVideoControls({
     } else {
       fadeOut();
     }
-  }, [activeRobotsPanel, captionsOpen, dismissCaptionsPanel, dismissRobotsPanel, dismissSettingsPanel, fadeIn, fadeOut, hidden, robotsLoading, settingsOpen]);
+  }, [activeRobotsPanel, captionsOpen, dismissCaptionsPanel, dismissMoreMenu, dismissRobotsPanel, dismissSettingsPanel, fadeIn, fadeOut, hidden, moreOpen, robotsLoading, settingsOpen]);
 
   React.useEffect(() => {
-    if (hidden || scrubbing || activeRobotsPanel || robotsLoading || captionsOpen || settingsOpen) {
+    if (hidden || scrubbing || activeRobotsPanel || robotsLoading || captionsOpen || settingsOpen || moreOpen) {
       return;
     }
     const timer = setTimeout(fadeOut, 3000);
     return () => clearTimeout(timer);
-  }, [hidden, scrubbing, activeRobotsPanel, robotsLoading, captionsOpen, settingsOpen, interactionTick, fadeOut]);
+  }, [hidden, scrubbing, activeRobotsPanel, robotsLoading, captionsOpen, settingsOpen, moreOpen, interactionTick, fadeOut]);
 
   const trackRef = React.useRef<View>(null);
   const scrubStateRef = React.useRef({
@@ -434,7 +531,9 @@ export function MuxVideoControls({
 
   const onTrackLayout = React.useCallback(
     (event: LayoutChangeEvent) => {
-      setTrackWidth(event.nativeEvent.layout.width);
+      const { width, x } = event.nativeEvent.layout;
+      setTrackWidth(width);
+      setTrackOffsetX(x);
       measureTrack();
     },
     [measureTrack]
@@ -516,8 +615,8 @@ export function MuxVideoControls({
     [computeTimeFromX, finishScrub, measureTrack]
   );
 
-  const seekSecondsRef = React.useRef(controlsTheme.seekSeconds);
-  seekSecondsRef.current = controlsTheme.seekSeconds;
+  const seekSecondsRef = React.useRef(colors.seekSeconds);
+  seekSecondsRef.current = colors.seekSeconds;
 
   const seekBack = React.useCallback(() => {
     keepAlive();
@@ -562,17 +661,56 @@ export function MuxVideoControls({
     runPlayerCommand(player.seekToLiveEdge());
   }, [keepAlive, player]);
 
+  const closeRobotsForPanel = React.useCallback(() => {
+    if (activeRobotsPanel || robotsLoading) {
+      robotsRequestRef.current += 1;
+      setActiveRobotsPanel(null);
+      setRobotsLoading(null);
+      setRobotsError(null);
+    }
+  }, [activeRobotsPanel, robotsLoading]);
+
   const toggleCaptionsPanel = React.useCallback(() => {
     keepAlive();
     setSettingsOpen(false);
+    closeRobotsForPanel();
+    if (menusCollide) {
+      setMoreOpen(false);
+    }
     setCaptionsOpen(open => !open);
-  }, [keepAlive]);
+  }, [closeRobotsForPanel, keepAlive, menusCollide]);
 
   const toggleSettingsPanel = React.useCallback(() => {
     keepAlive();
     setCaptionsOpen(false);
+    closeRobotsForPanel();
+    if (menusCollide) {
+      setMoreOpen(false);
+    }
     setSettingsOpen(open => !open);
-  }, [keepAlive]);
+  }, [closeRobotsForPanel, keepAlive, menusCollide]);
+
+  const toggleMoreMenu = React.useCallback(() => {
+    keepAlive();
+    closeRobotsForPanel();
+    if (menusCollide) {
+      setCaptionsOpen(false);
+      setSettingsOpen(false);
+    }
+    setMoreOpen(open => !open);
+  }, [closeRobotsForPanel, keepAlive, menusCollide]);
+
+  const toggleRobotVisibility = React.useCallback(
+    (kind: RobotsKind) => {
+      keepAlive();
+      const visible = robotsVisibility[kind] ?? !defaultHidden.includes(kind);
+      setRobotsVisibility(current => ({ ...current, [kind]: !visible }));
+      if (visible && activeRobotsPanel === kind) {
+        dismissRobotsPanel();
+      }
+    },
+    [activeRobotsPanel, defaultHidden, dismissRobotsPanel, keepAlive, robotsVisibility]
+  );
 
   const selectPlaybackRate = React.useCallback(
     (rate: number) => {
@@ -585,7 +723,6 @@ export function MuxVideoControls({
   const selectMaxResolution = React.useCallback(
     (resolution?: MuxMaxResolution) => {
       keepAlive();
-      setSettingsOpen(false);
       player.setMaxResolution(resolution);
     },
     [keepAlive, player]
@@ -776,6 +913,17 @@ export function MuxVideoControls({
       });
   }, [activeRobotsPanel, dismissRobotsPanel, displayTime, duration, keepAlive, robots, robotsAssetId, robotsLoading, toggleRobotsPanel, transcript?.cues.length, onGeneratedTranscriptChange]);
 
+  const openRobotsPanel = React.useCallback(
+    (kind: RobotsKind) => {
+      // Robots panels overlap the anchored menus, so only one is open at a time.
+      setCaptionsOpen(false);
+      setSettingsOpen(false);
+      setMoreOpen(false);
+      ({ summary: loadSummary, chapters: loadChapters, moments: loadKeyMoments, transcript: loadTranscript })[kind]();
+    },
+    [loadChapters, loadKeyMoments, loadSummary, loadTranscript]
+  );
+
   const seekToRobotsTime = React.useCallback(
     (target: number) => {
       keepAlive();
@@ -808,39 +956,41 @@ export function MuxVideoControls({
     [keepAlive, player]
   );
 
-  const defaultPanelMaxHeight = containerHeight > 0
-    ? Math.max(120, Math.min(176, Math.floor(containerHeight * 0.62)))
-    : 176;
-  const summaryPanelMaxHeight = containerHeight > 0
-    ? Math.max(140, Math.min(280, Math.floor(containerHeight * 0.65)))
-    : 260;
-  // The robots button row is pinned near the top of the view; cap the panel
-  // to the space left below the row so its bottom edge stays visible instead
-  // of overflowing the video. Tall (9:16) layouts get a proportional offset —
-  // a fixed one hugs the top edge and strands the UI far from the content.
-  const robotsRowTopPadding = isPortraitControls
-    ? Math.min(140, Math.max(24, Math.floor(containerHeight * 0.16)))
-    : isCompactHeight
-      ? 10
-      : 18;
-  const robotsPanelAvailableHeight =
-    containerHeight > 0
-      ? Math.max(
-          96,
-          Math.floor(containerHeight - (robotsRowTopPadding + robotsRowHeight + 6 + 10))
-        )
-      : 260;
-  const panelMaxHeight = Math.min(
-    activeRobotsPanel === 'summary' || activeRobotsPanel === 'transcript'
-      ? summaryPanelMaxHeight
-      : defaultPanelMaxHeight,
-    robotsPanelAvailableHeight
+  const timeLabel = isLive ? (
+    <Pressable
+      accessibilityLabel="Go to live edge"
+      accessibilityRole="button"
+      hitSlop={8}
+      onPress={seekToLive}
+      style={({ pressed }) => [styles.liveRow, { gap: u(14) }, pressed && styles.pressed]}
+    >
+      <View
+        style={{
+          backgroundColor: atLiveEdge ? colors.accentColor : colors.trackColor,
+          borderRadius: u(9),
+          height: u(18),
+          width: u(18),
+        }}
+      />
+      <Text numberOfLines={1} style={[styles.barText, { color: colors.textColor, fontSize: u(DESIGN.text) }]}>
+        {atLiveEdge ? 'LIVE' : `LIVE −${formatClock(behindLiveEdge)}`}
+      </Text>
+    </Pressable>
+  ) : (
+    <Text
+      numberOfLines={1}
+      style={[styles.barText, styles.tabular, { color: colors.textColor, fontSize: u(DESIGN.text) }]}
+    >
+      {formatClock(displayTime)} / {formatClock(duration)}
+    </Text>
   );
-  // The settings and captions panels are anchored above the bottom bar; cap
-  // them to the space left in the video view so their tops don't get clipped
-  // on short (inline) layouts.
-  const anchoredPanelMaxHeight =
-    containerHeight > 0 ? Math.max(96, Math.floor(containerHeight - 48)) : 280;
+
+  const previewWidth = Math.max(96, u(DESIGN.cardWidth));
+  const previewLeft = clamp(
+    u(DESIGN.barPaddingX) + trackOffsetX + clamp(progress, 0, 1) * trackWidth - previewWidth / 2,
+    0,
+    Math.max(0, barWidth - previewWidth)
+  );
 
   return (
     <View
@@ -868,420 +1018,403 @@ export function MuxVideoControls({
             style={StyleSheet.absoluteFill}
           />
           <LinearGradient
-            colors={['rgba(0,0,0,0.55)', 'rgba(0,0,0,0)']}
+            colors={[DESIGN_COLORS.fadeStart, DESIGN_COLORS.fadeEnd]}
             pointerEvents="none"
             style={styles.gradientTop}
           />
           <LinearGradient
-            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.7)']}
+            colors={[DESIGN_COLORS.fadeEnd, DESIGN_COLORS.fadeStart]}
             pointerEvents="none"
             style={styles.gradientBottom}
           />
-          <View
-            pointerEvents="box-none"
-            style={[
-              styles.centerWrap,
-              {
-                gap: centerVerticalGap,
-                left: offscreenLeftInset,
-                paddingHorizontal: centerHorizontalPadding,
-                right: offscreenRightInset,
-              },
-            ]}
-          >
-            {hasRobotsActions ? (
-              <View
-                pointerEvents="box-none"
-                style={[
-                  styles.robotsDock,
-                  { paddingHorizontal: centerHorizontalPadding, top: robotsRowTopPadding },
-                ]}
+
+          {!isRobotsFocused && !menuCoversTransport ? (
+            <View
+              pointerEvents="box-none"
+              style={[
+                styles.centerCluster,
+                {
+                  gap: u(DESIGN.seekGap) * (seekSize / u(DESIGN.seekCircle)),
+                  height: playSize,
+                  left: offscreenLeftInset,
+                  right: offscreenRightInset,
+                  top: centerY - playSize / 2,
+                },
+              ]}
+            >
+              <CircleButton
+                accessibilityLabel={`Skip back ${colors.seekSeconds} seconds`}
+                backgroundColor={colors.buttonBackgroundColor}
+                onPress={seekBack}
+                size={seekSize}
               >
-                <View style={styles.robotsArea}>
-                  <ScrollView
-                    horizontal
-                    bounces={false}
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.robotsButtonRow}
-                    style={styles.robotsButtonScroller}
-                  >
-                    {canSummarize ? (
-                      <RobotsActionButton
-                        active={activeRobotsPanel === 'summary'}
-                        backgroundColor={controlsTheme.buttonBackgroundColor}
-                        label="Summary"
-                        onPress={loadSummary}
-                        robotSource={robotImages.summary}
-                        textColor={controlsTheme.buttonTextColor}
-                      />
-                    ) : null}
-                    {canGenerateChapters ? (
-                      <RobotsActionButton
-                        active={activeRobotsPanel === 'chapters'}
-                        backgroundColor={controlsTheme.buttonBackgroundColor}
-                        label="Chapters"
-                        onPress={loadChapters}
-                        robotSource={robotImages.chapters}
-                        textColor={controlsTheme.buttonTextColor}
-                      />
-                    ) : null}
-                    {canFindKeyMoments ? (
-                      <RobotsActionButton
-                        active={activeRobotsPanel === 'moments'}
-                        backgroundColor={controlsTheme.buttonBackgroundColor}
-                        label="Moments"
-                        onPress={loadKeyMoments}
-                        robotSource={robotImages.moments}
-                        textColor={controlsTheme.buttonTextColor}
-                      />
-                    ) : null}
-                    {canTranscribe ? (
-                      <RobotsActionButton
-                        active={activeRobotsPanel === 'transcript'}
-                        backgroundColor={controlsTheme.buttonBackgroundColor}
-                        label="Transcript"
-                        onPress={loadTranscript}
-                        robotSource={robotImages.transcript}
-                        textColor={controlsTheme.buttonTextColor}
-                      />
-                    ) : null}
-                  </ScrollView>
-                  {activeRobotsPanel ? (
-                    <RobotsPanelView
-                      activePanel={activeRobotsPanel}
-                      backgroundColor={controlsTheme.panelBackgroundColor}
-                      chapters={visibleChapters}
-                      error={robotsError}
-                      keyMoments={visibleKeyMoments}
-                      loading={robotsLoading === activeRobotsPanel}
-                      maxHeight={panelMaxHeight}
-                      onSeek={seekToRobotsTime}
-                      summary={summary}
-                      textColor={controlsTheme.textColor}
-                      transcript={transcript}
-                    />
-                  ) : null}
-                </View>
-              </View>
-            ) : null}
-            {externalPlaybackActive ? (
-              <View
-                pointerEvents="none"
-                style={[styles.airPlayPill, { backgroundColor: controlsTheme.buttonBackgroundColor }]}
+                <SeekGlyph
+                  color={colors.buttonTextColor}
+                  direction="back"
+                  seconds={colors.seekSeconds}
+                  size={seekSize * (DESIGN.seekGlyph / DESIGN.seekCircle)}
+                  variant="mobile"
+                />
+              </CircleButton>
+              <CircleButton
+                accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
+                backgroundColor={colors.buttonBackgroundColor}
+                onPress={togglePlayback}
+                size={playSize}
               >
-                <Text style={[styles.airPlayPillText, { color: controlsTheme.textColor }]}>
+                <ControlIcon
+                  color={colors.buttonTextColor}
+                  name={isPlaying ? 'pause' : 'play'}
+                  size={playSize * (DESIGN.playGlyph / DESIGN.playCircle)}
+                />
+              </CircleButton>
+              <CircleButton
+                accessibilityLabel={`Skip forward ${colors.seekSeconds} seconds`}
+                backgroundColor={colors.buttonBackgroundColor}
+                onPress={seekForward}
+                size={seekSize}
+              >
+                <SeekGlyph
+                  color={colors.buttonTextColor}
+                  direction="forward"
+                  seconds={colors.seekSeconds}
+                  size={seekSize * (DESIGN.seekGlyph / DESIGN.seekCircle)}
+                  variant="mobile"
+                />
+              </CircleButton>
+            </View>
+          ) : null}
+
+          {externalPlaybackActive && !isRobotsFocused ? (
+            <View
+              pointerEvents="none"
+              style={[styles.airPlayRow, { top: panelTop, left: leftInset, right: rightInset }]}
+            >
+              <View
+                style={{
+                  backgroundColor: colors.buttonBackgroundColor,
+                  borderRadius: u(DESIGN.barRadius),
+                  paddingHorizontal: u(28),
+                  paddingVertical: u(10),
+                }}
+              >
+                <Text style={[styles.barText, { color: colors.textColor, fontSize: u(DESIGN.text) }]}>
                   Playing via AirPlay
                 </Text>
               </View>
-            ) : null}
-            <View
-              pointerEvents={isRobotsFocused ? 'none' : 'box-none'}
-              style={[
-                styles.centerCluster,
-                { gap: centerHorizontalGap },
-                isRobotsFocused && styles.centerClusterHidden,
-              ]}
-            >
-              <IconButton
-                accessibilityLabel={`Skip back ${controlsTheme.seekSeconds} seconds`}
-                backgroundColor={controlsTheme.buttonBackgroundColor}
-                onPress={seekBack}
-                size={buttonSize}
-              >
-                <SkipIcon
-                  color={controlsTheme.buttonTextColor}
-                  direction="back"
-                  seconds={controlsTheme.seekSeconds}
-                  size={buttonSize}
-                />
-              </IconButton>
-              <IconButton
-                accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
-                backgroundColor={controlsTheme.buttonBackgroundColor}
-                onPress={togglePlayback}
-                size={playButtonSize}
-              >
-                {isPlaying ? (
-                  <PauseIcon color={controlsTheme.buttonTextColor} size={playButtonSize} />
-                ) : (
-                  <PlayIcon color={controlsTheme.buttonTextColor} size={playButtonSize} />
-                )}
-              </IconButton>
-              <IconButton
-                accessibilityLabel={`Skip forward ${controlsTheme.seekSeconds} seconds`}
-                backgroundColor={controlsTheme.buttonBackgroundColor}
-                onPress={seekForward}
-                size={buttonSize}
-              >
-                <SkipIcon
-                  color={controlsTheme.buttonTextColor}
-                  direction="forward"
-                  seconds={controlsTheme.seekSeconds}
-                  size={buttonSize}
-                />
-              </IconButton>
             </View>
-          </View>
+          ) : null}
 
-          {!isRobotsFocused ? (
-          <View
-            pointerEvents="box-none"
-            style={[
-              styles.timeline,
-              {
-                bottom: timelineBottomInset,
-                left: timelineLeftInset,
-                right: timelineRightInset,
-              },
-            ]}
-          >
-            {scrubbing && thumbnailPreviews && source ? (
-              <ScrubPreview
-                progress={progress}
-                source={source}
-                storyboard={storyboard}
-                time={displayTime}
-                trackPadding={trackHorizontalPadding}
-                trackWidth={trackWidth}
-              />
-            ) : null}
-            {activeChapter ? (
-              <View pointerEvents="none" style={styles.chapterPillRow}>
-                <View
-                  style={[
-                    styles.chapterPill,
-                    { backgroundColor: controlsTheme.buttonBackgroundColor },
-                  ]}
-                >
-                  <Text
-                    numberOfLines={1}
-                    style={[styles.chapterPillText, { color: controlsTheme.textColor }]}
-                  >
-                    {activeChapter.title}
-                  </Text>
-                </View>
-              </View>
-            ) : null}
+          {showBar ? (
             <View
-              accessibilityActions={SEEK_ACCESSIBILITY_ACTIONS}
-              accessibilityLabel={isLive ? 'Seek live stream' : 'Seek video'}
-              accessibilityRole="adjustable"
-              accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}
-              onAccessibilityAction={handleAccessibilitySeek}
+              onLayout={event => setBarWidth(event.nativeEvent.layout.width)}
+              pointerEvents="box-none"
               style={[
-                styles.trackHitArea,
-                {
-                  backgroundColor: controlsTheme.buttonBackgroundColor,
-                  paddingHorizontal: trackHorizontalPadding,
-                  paddingVertical: trackVerticalPadding,
-                },
+                styles.bar,
+                { bottom: bottomInset, height: barHeight, left: leftInset, right: rightInset },
               ]}
-              {...panResponder.panHandlers}
             >
               <View
-                ref={trackRef}
-                onLayout={onTrackLayout}
                 style={[
-                  styles.track,
+                  StyleSheet.absoluteFill,
                   {
-                    backgroundColor: controlsTheme.trackColor,
-                    height: scrubbing ? trackHeight + 2 : trackHeight,
-                    borderRadius: trackHeight,
+                    backgroundColor: colors.panelBackgroundColor,
+                    borderRadius: u(DESIGN.barRadius),
+                    paddingHorizontal: u(DESIGN.barPaddingX),
+                    paddingTop: u(DESIGN.barPaddingTop),
                   },
                 ]}
               >
-                <View
-                  style={[
-                    styles.trackFill,
-                    {
-                      backgroundColor: controlsTheme.bufferedTrackColor,
-                      borderRadius: trackHeight,
-                      width: `${buffered * 100}%`,
-                    },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.trackFill,
-                    {
-                      backgroundColor: controlsTheme.progressTrackColor,
-                      borderRadius: trackHeight,
-                      width: `${progress * 100}%`,
-                    },
-                    ]}
-                  />
-                {duration > 0
-                  ? visibleKeyMoments.map(moment => {
-                      const start = clamp(moment.startTime / duration, 0, 1);
-                      const end = clamp(moment.endTime / duration, 0, 1);
-                      return (
-                        <View
-                          key={`${moment.startTime}-${moment.endTime}-${moment.title}`}
-                          pointerEvents="none"
-                          style={[
-                            styles.momentRange,
-                            {
-                              backgroundColor: controlsTheme.accentColor,
-                              left: `${start * 100}%`,
-                              width: `${Math.max(0, end - start) * 100}%`,
-                            },
-                          ]}
-                        />
-                      );
-                    })
-                  : null}
-                {duration > 0
-                  ? visibleChapters.slice(1).map(chapter => (
-                      <View
-                        key={`${chapter.startTime}-${chapter.title}`}
-                        pointerEvents="none"
-                        style={[
-                          styles.chapterMarker,
-                          {
-                            backgroundColor: controlsTheme.buttonTextColor,
-                            left: `${clamp(chapter.startTime / duration, 0, 1) * 100}%`,
-                          },
-                        ]}
-                      />
-                    ))
-                  : null}
-              </View>
-            </View>
-            <View style={styles.timeRow}>
-              {isLive ? (
-                <Pressable
-                  accessibilityLabel="Go to live edge"
-                  accessibilityRole="button"
-                  onPress={seekToLive}
-                  style={({ pressed }) => [
-                    styles.livePill,
-                    {
-                      backgroundColor: atLiveEdge
-                        ? controlsTheme.accentColor
-                        : controlsTheme.buttonBackgroundColor,
-                      paddingHorizontal: timePillHorizontalPadding,
-                    },
-                    pressed && styles.pressed,
-                  ]}
-                >
+                <View style={[styles.barRow, { height: u(DESIGN.textRow) }]}>
+                  {timeInTopRow ? timeLabel : null}
                   <View
+                    accessibilityActions={SEEK_ACCESSIBILITY_ACTIONS}
+                    accessibilityLabel={isLive ? 'Seek live stream' : 'Seek video'}
+                    accessibilityRole="adjustable"
+                    accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}
+                    onAccessibilityAction={handleAccessibilitySeek}
+                    onLayout={onTrackLayout}
                     style={[
-                      styles.liveDot,
-                      { backgroundColor: atLiveEdge ? '#ffffff' : controlsTheme.accentColor },
+                      styles.trackHitArea,
+                      {
+                        // Taller than the row so the thin track is easy to grab.
+                        height: u(DESIGN.textRow) + 16,
+                        marginLeft: timeInTopRow ? u(DESIGN.timeGap) : 0,
+                        marginVertical: -8,
+                      },
                     ]}
-                  />
-                  <Text style={[styles.liveText, { color: controlsTheme.textColor, fontSize: timeFontSize }]}>
-                    {atLiveEdge ? 'LIVE' : `LIVE −${formatTime(behindLiveEdge)}`}
-                  </Text>
-                </Pressable>
-              ) : (
-                <View
-                  style={[
-                    styles.timePill,
-                    {
-                      backgroundColor: controlsTheme.buttonBackgroundColor,
-                      paddingHorizontal: timePillHorizontalPadding,
-                    },
-                  ]}
-                >
-                  <Text
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.85}
-                    numberOfLines={1}
-                    style={[
-                      styles.timeText,
-                      { color: controlsTheme.textColor, fontSize: timeFontSize },
-                    ]}
+                    {...panResponder.panHandlers}
                   >
-                    {formatTime(displayTime)} / {formatTime(duration)}
-                  </Text>
+                    <View ref={trackRef} collapsable={false}>
+                      <ProgressTrack
+                        buffered={buffered}
+                        colors={{
+                          buffered: colors.bufferedTrackColor,
+                          marker: colors.textColor,
+                          progress: colors.progressTrackColor,
+                          range: colors.progressTrackColor,
+                          playedRange: colors.textColor,
+                          track: colors.trackColor,
+                        }}
+                        height={scrubbing ? trackHeight * 1.5 : trackHeight}
+                        markerHeight={u(DESIGN.markerHeight)}
+                        markerWidth={u(DESIGN.markerWidth)}
+                        marks={trackMarks}
+                        progress={progress}
+                      />
+                    </View>
+                  </View>
                 </View>
-              )}
-              <View style={styles.timeControls}>
-                {showCaptionsButton ? (
-                  <View style={styles.captionControlWrap}>
-                    {captionsOpen ? (
-                      <CaptionTracksPanel
-                        accentColor={controlsTheme.accentColor}
-                        audioTracks={audioTracks}
-                        backgroundColor={controlsTheme.panelBackgroundColor}
-                        captionTracks={captionTracks}
-                        maxHeight={anchoredPanelMaxHeight}
-                        onSelectAudioTrack={selectAudioTrack}
-                        onSelectCaptionTrack={selectCaptionTrack}
-                        selectedAudioTrackId={selectedAudioTrackId}
-                        selectedCaptionTrackId={selectedCaptionTrackId}
-                        showAudio={hasAudioTrackChoices}
-                        showCaptions={hasCaptionTracks}
-                        textColor={controlsTheme.textColor}
-                      />
-                    ) : null}
-                    <IconButton
-                      accessibilityLabel={captionsOpen ? 'Hide captions options' : 'Show captions options'}
-                      backgroundColor={controlsTheme.buttonBackgroundColor}
-                      onPress={toggleCaptionsPanel}
-                      size={fullscreenButtonSize}
-                    >
-                      <CaptionsIcon
-                        active={selectedCaptionTrackId !== null}
-                        color={controlsTheme.buttonTextColor}
-                        size={fullscreenButtonSize}
-                      />
-                    </IconButton>
+                <View style={[styles.barRow, { height: u(DESIGN.icon), marginTop: u(DESIGN.barRowGap) }]}>
+                  <View style={styles.barTitle}>
+                    {timeInTopRow && activeChapter ? (
+                      <Text
+                        numberOfLines={1}
+                        style={[styles.barText, { color: colors.textColor, fontSize: u(DESIGN.text) }]}
+                      >
+                        {activeChapter.title}
+                      </Text>
+                    ) : (
+                      timeLabel
+                    )}
                   </View>
-                ) : null}
-                {showAirPlayButton && NativeAirPlayButton ? (
-                  <NativeAirPlayButton
-                    activeTintColor={controlsTheme.accentColor}
-                    style={{ height: fullscreenButtonSize, width: fullscreenButtonSize }}
-                    tintColor={controlsTheme.buttonTextColor}
-                  />
-                ) : null}
-                {showSettingsButton ? (
-                  <View style={styles.captionControlWrap}>
-                    {settingsOpen ? (
-                      <SettingsPanel
-                        accentColor={controlsTheme.accentColor}
-                        backgroundColor={controlsTheme.panelBackgroundColor}
-                        currentMaxResolution={source?.maxResolution}
-                        currentRate={status.playbackRate}
-                        maxHeight={anchoredPanelMaxHeight}
-                        onSelectRate={selectPlaybackRate}
-                        onSelectResolution={selectMaxResolution}
-                        showQuality={showQualityControl}
-                        showSpeed={showSpeedControl}
-                        textColor={controlsTheme.textColor}
-                      />
+                  <View style={[styles.barIcons, { gap: u(DESIGN.iconGap), marginLeft: u(DESIGN.iconGap) }]}>
+                    {showCaptionsButton ? (
+                      <IconButton
+                        accessibilityLabel={captionsOpen ? 'Hide captions options' : 'Show captions options'}
+                        onPress={toggleCaptionsPanel}
+                        size={iconSize}
+                      >
+                        <CaptionsGlyph
+                          active={selectedCaptionTrackId !== null}
+                          color={colors.buttonTextColor}
+                          size={iconSize}
+                        />
+                      </IconButton>
                     ) : null}
-                    <IconButton
-                      accessibilityLabel={settingsOpen ? 'Hide playback settings' : 'Show playback settings'}
-                      backgroundColor={controlsTheme.buttonBackgroundColor}
-                      onPress={toggleSettingsPanel}
-                      size={fullscreenButtonSize}
-                    >
-                      <SettingsIcon color={controlsTheme.buttonTextColor} size={fullscreenButtonSize} />
-                    </IconButton>
+                    {showAirPlayButton && NativeAirPlayButton ? (
+                      <View style={{ height: iconSize, width: iconSize }}>
+                        {/* AVRoutePickerView draws a fixed-size glyph; keep it as the
+                            invisible touch target and show the Figma icon instead. */}
+                        <NativeAirPlayButton
+                          activeTintColor="transparent"
+                          style={StyleSheet.absoluteFill}
+                          tintColor="transparent"
+                        />
+                        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+                          <ControlIcon
+                            color={externalPlaybackActive ? colors.accentColor : colors.buttonTextColor}
+                            name="airplay"
+                            size={iconSize}
+                          />
+                        </View>
+                      </View>
+                    ) : null}
+                    {showSettingsButton ? (
+                      <IconButton
+                        accessibilityLabel={settingsOpen ? 'Hide playback settings' : 'Show playback settings'}
+                        onPress={toggleSettingsPanel}
+                        size={iconSize}
+                      >
+                        <ControlIcon
+                          color={colors.buttonTextColor}
+                          name={settingsOpen ? 'settingsOn' : 'settings'}
+                          size={iconSize}
+                        />
+                      </IconButton>
+                    ) : null}
+                    {allowsFullscreen && onToggleFullscreen ? (
+                      <IconButton
+                        accessibilityLabel={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+                        onPress={handleToggleFullscreen}
+                        size={iconSize}
+                      >
+                        <ControlIcon
+                          color={colors.buttonTextColor}
+                          name={isFullscreen ? 'fullscreenExit' : 'fullscreenEnter'}
+                          size={iconSize}
+                        />
+                      </IconButton>
+                    ) : null}
                   </View>
-                ) : null}
-                {allowsFullscreen && onToggleFullscreen ? (
-                  <IconButton
-                    accessibilityLabel={
-                      isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'
-                    }
-                    backgroundColor={controlsTheme.buttonBackgroundColor}
-                    onPress={handleToggleFullscreen}
-                    size={fullscreenButtonSize}
-                  >
-                    <FullscreenIcon
-                      color={controlsTheme.buttonTextColor}
-                      expanded={isFullscreen}
-                      size={fullscreenButtonSize}
-                    />
-                  </IconButton>
-                ) : null}
+                </View>
               </View>
+              {scrubbing && thumbnailPreviews && source && trackWidth > 0 ? (
+                <ScrubPreview
+                  bottom={barHeight + u(DESIGN.panelGap)}
+                  left={previewLeft}
+                  source={source}
+                  storyboard={storyboard}
+                  time={displayTime}
+                  u={u}
+                  width={previewWidth}
+                />
+              ) : null}
+              {captionsOpen ? (
+                <AnchoredPanel
+                  backgroundColor={colors.panelBackgroundColor}
+                  bottom={barHeight + u(DESIGN.panelGap)}
+                  maxHeight={anchoredPanelMaxHeight}
+                  maxWidth={contentWidth}
+                  u={u}
+                >
+                  {hasCaptionTracks ? (
+                    <ChipRow label="Captions" labelWidth={DESIGN.tracksLabelWidth} textColor={colors.textColor} u={u}>
+                      <Chip
+                        label="Off"
+                        onPress={() => selectCaptionTrack(null)}
+                        selected={selectedCaptionTrackId === null}
+                        u={u}
+                      />
+                      {captionTracks.map(track => (
+                        <Chip
+                          key={track.id}
+                          label={track.label || track.language || 'Caption track'}
+                          onPress={() => selectCaptionTrack(track.id)}
+                          selected={selectedCaptionTrackId === track.id}
+                          u={u}
+                        />
+                      ))}
+                    </ChipRow>
+                  ) : null}
+                  {hasAudioTrackChoices ? (
+                    <ChipRow label="Audio" labelWidth={DESIGN.tracksLabelWidth} textColor={colors.textColor} u={u}>
+                      {audioTracks.map(track => (
+                        <Chip
+                          key={track.id}
+                          label={track.label || track.language || 'Audio track'}
+                          onPress={() => selectAudioTrack(track.id)}
+                          selected={selectedAudioTrackId === track.id}
+                          u={u}
+                        />
+                      ))}
+                    </ChipRow>
+                  ) : null}
+                </AnchoredPanel>
+              ) : null}
+              {settingsOpen ? (
+                <AnchoredPanel
+                  backgroundColor={colors.panelBackgroundColor}
+                  bottom={barHeight + u(DESIGN.panelGap)}
+                  maxHeight={anchoredPanelMaxHeight}
+                  maxWidth={contentWidth}
+                  u={u}
+                >
+                  {showQualityControl ? (
+                    <ChipRow label="Quality" textColor={colors.textColor} u={u}>
+                      <Chip
+                        label="Auto"
+                        onPress={() => selectMaxResolution(undefined)}
+                        selected={source?.maxResolution == null}
+                        u={u}
+                      />
+                      {QUALITY_OPTIONS.map(resolution => (
+                        <Chip
+                          key={resolution}
+                          label={resolution.replace('p', '')}
+                          onPress={() => selectMaxResolution(resolution)}
+                          selected={source?.maxResolution === resolution}
+                          u={u}
+                        />
+                      ))}
+                    </ChipRow>
+                  ) : null}
+                  {showSpeedControl ? (
+                    <ChipRow label="Speed" textColor={colors.textColor} u={u}>
+                      {SPEED_OPTIONS.map(rate => (
+                        <Chip
+                          key={rate}
+                          label={`${rate}x`}
+                          onPress={() => selectPlaybackRate(rate)}
+                          selected={Math.abs(status.playbackRate - rate) < 0.001}
+                          u={u}
+                        />
+                      ))}
+                    </ChipRow>
+                  ) : null}
+                </AnchoredPanel>
+              ) : null}
             </View>
-          </View>
+          ) : null}
+
+          {hasRobotsActions ? (
+            <>
+              {activeRobotsPanel ? (
+                <RobotsPanelView
+                  activePanel={activeRobotsPanel}
+                  backgroundColor={colors.panelBackgroundColor}
+                  chapters={visibleChapters}
+                  error={robotsError}
+                  keyMoments={visibleKeyMoments}
+                  loading={robotsLoading === activeRobotsPanel}
+                  maxHeight={robotsPanelMaxHeight}
+                  onSeek={seekToRobotsTime}
+                  source={thumbnailPreviews ? source : undefined}
+                  style={
+                    activeRobotsPanel === 'summary'
+                      ? {
+                          left: leftInset + Math.max(0, (contentWidth - u(DESIGN.summaryWidth)) / 2),
+                          top: panelTop,
+                          width: Math.min(contentWidth, u(DESIGN.summaryWidth)),
+                        }
+                      : { left: leftInset, right: rightInset, top: panelTop }
+                  }
+                  summary={summary}
+                  textColor={colors.textColor}
+                  transcript={transcript}
+                  u={u}
+                />
+              ) : null}
+              <View
+                pointerEvents="box-none"
+                style={[styles.topRow, { gap: u(DESIGN.circleGap), left: leftInset, right: rightInset, top: topInset }]}
+              >
+                {visibleRobots.map(kind =>
+                  kind === activeRobotsPanel ? (
+                    <RobotsTab
+                      color={colors.panelBackgroundColor}
+                      key={kind}
+                      kind={kind}
+                      onPress={() => openRobotsPanel(kind)}
+                      textColor={colors.textColor}
+                      u={u}
+                    />
+                  ) : (
+                    <CircleButton
+                      accessibilityLabel={`Show ${ROBOTS_LABELS[kind].toLowerCase()} video AI results`}
+                      backgroundColor={colors.buttonBackgroundColor}
+                      key={kind}
+                      onPress={() => openRobotsPanel(kind)}
+                      size={u(DESIGN.circle)}
+                    >
+                      <RobotsGlyph color={colors.buttonTextColor} kind={kind} size={u(DESIGN.icon)} />
+                    </CircleButton>
+                  )
+                )}
+              </View>
+              <View pointerEvents="box-none" style={[styles.moreAnchor, { right: rightInset, top: topInset }]}>
+                {moreOpen ? (
+                  <MoreMenu
+                    available={availableRobots}
+                    color={colors.panelBackgroundColor}
+                    isVisible={isRobotVisible}
+                    onClose={toggleMoreMenu}
+                    onToggle={toggleRobotVisibility}
+                    textColor={colors.textColor}
+                    u={u}
+                  />
+                ) : (
+                  <CircleButton
+                    accessibilityLabel="Choose Mux Robots features"
+                    backgroundColor={colors.buttonBackgroundColor}
+                    onPress={toggleMoreMenu}
+                    size={u(DESIGN.circle)}
+                  >
+                    <ControlIcon color={colors.buttonTextColor} name="more" size={u(DESIGN.icon)} />
+                  </CircleButton>
+                )}
+              </View>
+            </>
           ) : null}
         </Animated.View>
       )}
@@ -1289,7 +1422,6 @@ export function MuxVideoControls({
   );
 }
 
-const PREVIEW_WIDTH = 132;
 const PREVIEW_FALLBACK_ASPECT = 16 / 9;
 
 function useReducedMotion(): boolean {
@@ -1354,36 +1486,30 @@ function useStoryboard(source?: NormalizedMuxVideoSource): ParsedStoryboard | nu
 }
 
 function ScrubPreview({
-  progress,
+  bottom,
+  left,
   source,
   storyboard,
   time,
-  trackPadding,
-  trackWidth,
+  u,
+  width,
 }: {
-  progress: number;
+  bottom: number;
+  left: number;
   source: NormalizedMuxVideoSource;
   storyboard: ParsedStoryboard | null;
   time: number;
-  trackPadding: number;
-  trackWidth: number;
+  u: Scale;
+  width: number;
 }) {
-  if (trackWidth <= 0) {
-    return null;
-  }
-
   const tile = storyboard ? tileForTime(storyboard, time) : undefined;
   const aspect =
     tile && tile.height > 0 ? tile.width / tile.height : PREVIEW_FALLBACK_ASPECT;
-  const previewHeight = Math.round(PREVIEW_WIDTH / aspect);
-
-  const timelineWidth = trackWidth + trackPadding * 2;
-  const thumbCenter = trackPadding + clamp(progress, 0, 1) * trackWidth;
-  const left = clamp(thumbCenter - PREVIEW_WIDTH / 2, 0, Math.max(0, timelineWidth - PREVIEW_WIDTH));
+  const height = Math.round(width / aspect);
 
   let inner: React.ReactNode = null;
   if (tile && storyboard && storyboard.spriteWidth > 0) {
-    const scale = PREVIEW_WIDTH / tile.width;
+    const scale = width / tile.width;
     inner = (
       <Image
         source={{ uri: storyboard.spriteUrl }}
@@ -1402,7 +1528,7 @@ function ScrubPreview({
         source={{
           uri: buildMuxThumbnailUrl(source, {
             time: Math.floor(time),
-            width: PREVIEW_WIDTH * 2,
+            width: Math.round(width * 2),
             token: source.thumbnailToken,
           }),
         }}
@@ -1416,18 +1542,28 @@ function ScrubPreview({
       pointerEvents="none"
       style={[
         styles.scrubPreview,
-        { width: PREVIEW_WIDTH, height: previewHeight, left },
+        {
+          borderColor: DESIGN_COLORS.text,
+          borderRadius: u(DESIGN.cardRadius),
+          borderWidth: u(DESIGN.cardBorder),
+          bottom,
+          height,
+          left,
+          width,
+        },
       ]}
     >
       {inner}
-      <View pointerEvents="none" style={styles.scrubPreviewTimeRow}>
-        <Text style={styles.scrubPreviewTime}>{formatTime(time)}</Text>
+      <View pointerEvents="none" style={[styles.scrubPreviewTimeRow, { paddingVertical: u(6) }]}>
+        <Text style={[styles.barText, styles.tabular, { color: DESIGN_COLORS.text, fontSize: u(DESIGN.smallText) }]}>
+          {formatClock(time)}
+        </Text>
       </View>
     </View>
   );
 }
 
-const IconButton = React.memo(function IconButton({
+const CircleButton = React.memo(function CircleButton({
   accessibilityLabel,
   backgroundColor,
   children,
@@ -1447,16 +1583,8 @@ const IconButton = React.memo(function IconButton({
       hitSlop={8}
       onPress={onPress}
       style={({ pressed }) => [
-        {
-          alignItems: 'center',
-          backgroundColor,
-          borderColor: frostBorderColor,
-          borderRadius: size / 2,
-          borderWidth: frostBorderWidth,
-          height: size,
-          justifyContent: 'center',
-          width: size,
-        },
+        styles.center,
+        { backgroundColor, borderRadius: size / 2, height: size, width: size },
         pressed && styles.pressed,
       ]}
     >
@@ -1465,45 +1593,275 @@ const IconButton = React.memo(function IconButton({
   );
 });
 
-const RobotsActionButton = React.memo(function RobotsActionButton({
-  active,
-  backgroundColor,
-  disabled = false,
-  label,
+const IconButton = React.memo(function IconButton({
+  accessibilityLabel,
+  children,
   onPress,
-  robotSource,
-  textColor,
+  size,
 }: {
-  active: boolean;
-  backgroundColor: string;
-  disabled?: boolean;
-  label: string;
+  accessibilityLabel: string;
+  children: React.ReactNode;
   onPress: () => void;
-  robotSource: ImageSourcePropType;
-  textColor: string;
+  size: number;
 }) {
   return (
     <Pressable
-      accessibilityLabel={`Show ${label.toLowerCase()} video AI results`}
+      accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
-      disabled={disabled}
-      hitSlop={6}
+      hitSlop={10}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.robotsButton,
-        {
-          backgroundColor,
-          borderColor: active ? textColor : frostBorderColor,
-          opacity: disabled ? 0.65 : 1,
-        },
-        pressed && styles.pressed,
-      ]}
+      style={({ pressed }) => [styles.center, { height: size, width: size }, pressed && styles.pressed]}
     >
-      <Image source={robotSource} style={styles.robotsButtonImage} />
-      <Text style={[styles.robotsButtonText, { color: textColor }]}>{label}</Text>
+      {children}
     </Pressable>
   );
 });
+
+/** The active Robots button grows into a labelled tab that flares into its panel. */
+function RobotsTab({
+  color,
+  kind,
+  onPress,
+  textColor,
+  u,
+}: {
+  color: string;
+  kind: RobotsKind;
+  onPress: () => void;
+  textColor: string;
+  u: Scale;
+}) {
+  const radius = u(DESIGN.panelRadius);
+  return (
+    <View
+      style={{
+        backgroundColor: color,
+        borderTopLeftRadius: radius,
+        borderTopRightRadius: radius,
+        height: px(u(DESIGN.tabHeight)),
+        minWidth: u(DESIGN.tabMinWidth),
+      }}
+    >
+      <Pressable
+        accessibilityLabel={`Hide ${ROBOTS_LABELS[kind].toLowerCase()} video AI results`}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: true }}
+        hitSlop={8}
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.tabContent,
+          {
+            gap: u(DESIGN.tabLabelGap),
+            height: u(DESIGN.circle),
+            paddingLeft: u(DESIGN.tabPaddingLeft),
+            paddingRight: u(DESIGN.tabPaddingRight),
+          },
+          pressed && styles.pressed,
+        ]}
+      >
+        <RobotsGlyph color={textColor} kind={kind} size={u(DESIGN.icon)} />
+        <Text numberOfLines={1} style={[styles.barText, { color: textColor, fontSize: u(DESIGN.text) }]}>
+          {ROBOTS_LABELS[kind]}
+        </Text>
+      </Pressable>
+      <ConcaveCorner color={color} radius={radius} side="left" />
+      <ConcaveCorner color={color} radius={radius} side="right" />
+    </View>
+  );
+}
+
+/** "…" opens a dropdown that chooses which Robots features the top row shows. */
+function MoreMenu({
+  available,
+  color,
+  isVisible,
+  onClose,
+  onToggle,
+  textColor,
+  u,
+}: {
+  available: RobotsKind[];
+  color: string;
+  isVisible: (kind: RobotsKind) => boolean;
+  onClose: () => void;
+  onToggle: (kind: RobotsKind) => void;
+  textColor: string;
+  u: Scale;
+}) {
+  const radius = u(DESIGN.menuRadius);
+  return (
+    <View style={styles.moreMenu}>
+      <View
+        style={{
+          backgroundColor: color,
+          borderTopLeftRadius: radius,
+          borderTopRightRadius: radius,
+          height: px(u(DESIGN.circle)),
+          width: u(DESIGN.circle),
+        }}
+      >
+        <Pressable
+          accessibilityLabel="Close Mux Robots features"
+          accessibilityRole="button"
+          accessibilityState={{ expanded: true }}
+          hitSlop={8}
+          onPress={onClose}
+          style={({ pressed }) => [styles.center, StyleSheet.absoluteFill, pressed && styles.pressed]}
+        >
+          <ControlIcon color={textColor} name="more" size={u(DESIGN.icon)} />
+        </Pressable>
+        <ConcaveCorner color={color} radius={radius} side="left" />
+      </View>
+      <View
+        style={{
+          backgroundColor: color,
+          borderBottomLeftRadius: radius,
+          borderBottomRightRadius: radius,
+          borderTopLeftRadius: radius,
+          gap: u(DESIGN.menuPadding),
+          minWidth: u(DESIGN.menuWidth),
+          padding: u(DESIGN.menuPadding),
+        }}
+      >
+        {available.map(kind => {
+          const on = isVisible(kind);
+          return (
+            <Pressable
+              accessibilityLabel={`Show ${ROBOTS_LABELS[kind]} button`}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: on }}
+              hitSlop={6}
+              key={kind}
+              onPress={() => onToggle(kind)}
+              style={({ pressed }) => [styles.menuRow, { gap: u(DESIGN.toggleLabelGap) }, pressed && styles.pressed]}
+            >
+              <Text numberOfLines={1} style={[styles.barText, { color: textColor, fontSize: u(DESIGN.text) }]}>
+                {ROBOTS_LABELS[kind]}
+              </Text>
+              <View
+                style={{
+                  backgroundColor: on ? textColor : 'transparent',
+                  borderColor: textColor,
+                  borderRadius: u(DESIGN.toggle / 2),
+                  borderWidth: u(DESIGN.toggleBorder),
+                  height: u(DESIGN.toggle),
+                  width: u(DESIGN.toggle),
+                }}
+              />
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function AnchoredPanel({
+  backgroundColor,
+  bottom,
+  children,
+  maxHeight,
+  maxWidth,
+  u,
+}: {
+  backgroundColor: string;
+  bottom: number;
+  children: React.ReactNode;
+  maxHeight: number;
+  maxWidth: number;
+  u: Scale;
+}) {
+  return (
+    <View
+      style={[
+        styles.anchoredPanel,
+        {
+          backgroundColor,
+          borderRadius: u(DESIGN.barRadius),
+          bottom,
+          maxHeight,
+          maxWidth,
+          // Never narrower than the Figma settings panel.
+          minWidth: Math.min(maxWidth, u(DESIGN.settingsPanelWidth)),
+        },
+      ]}
+    >
+      <ScrollView
+        bounces={false}
+        contentContainerStyle={{ gap: u(DESIGN.menuPadding), padding: u(DESIGN.menuPadding) }}
+        showsVerticalScrollIndicator={false}
+      >
+        {children}
+      </ScrollView>
+    </View>
+  );
+}
+
+function ChipRow({
+  children,
+  label,
+  labelWidth = DESIGN.settingsLabelWidth,
+  textColor,
+  u,
+}: {
+  children: React.ReactNode;
+  label: string;
+  labelWidth?: number;
+  textColor: string;
+  u: Scale;
+}) {
+  const fontsReady = useDesignFonts();
+  return (
+    <View style={styles.chipRow}>
+      <Text
+        numberOfLines={1}
+        style={[
+          styles.barText,
+          designFontStyle(fontsReady),
+          { color: textColor, fontSize: u(DESIGN.text), marginRight: u(DESIGN.menuPadding), width: u(labelWidth) },
+        ]}
+      >
+        {label}
+      </Text>
+      <ScrollView
+        bounces={false}
+        contentContainerStyle={{ gap: u(DESIGN.chipGap) }}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.chipScroller}
+      >
+        {children}
+      </ScrollView>
+    </View>
+  );
+}
+
+function Chip({
+  label,
+  onPress,
+  selected,
+  u,
+}: {
+  label: string;
+  onPress: () => void;
+  selected: boolean;
+  u: Scale;
+}) {
+  const fontsReady = useDesignFonts();
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      style={({ pressed }) => [chipStyle(u, selected), pressed && styles.pressed]}
+    >
+      <Text numberOfLines={1} style={chipTextStyle(u, selected, fontsReady)}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
 
 function RobotsPanelView({
   activePanel,
@@ -1514,9 +1872,12 @@ function RobotsPanelView({
   loading,
   maxHeight,
   onSeek,
+  source,
+  style,
   summary,
   textColor,
   transcript,
+  u,
 }: {
   activePanel: RobotsPanel;
   backgroundColor: string;
@@ -1526,38 +1887,221 @@ function RobotsPanelView({
   loading: boolean;
   maxHeight: number;
   onSeek: (time: number) => void;
+  source?: NormalizedMuxVideoSource;
+  style: { left: number; top: number; right?: number; width?: number };
   summary?: MuxVideoSummary;
   textColor: string;
   transcript?: MuxVideoTranscript;
+  u: Scale;
 }) {
-  const title =
-    activePanel === 'summary'
-      ? 'Summary'
-      : activePanel === 'chapters'
-        ? 'Chapters'
-        : activePanel === 'transcript'
-          ? 'Transcript'
-          : 'Key Moments';
+  const isCards = activePanel === 'chapters' || activePanel === 'moments';
+  const message = (text: string) => (
+    <Text style={[styles.panelText, { color: textColor, fontSize: u(DESIGN.text), lineHeight: u(DESIGN.bodyLineHeight) }]}>
+      {text}
+    </Text>
+  );
+  let content: React.ReactNode;
+  if (loading) {
+    content = message('Generating results...');
+  } else if (error) {
+    content = message(error);
+  } else if (activePanel === 'summary') {
+    content = summary ? <SummaryPanel summary={summary} textColor={textColor} u={u} /> : message('No summary yet.');
+  } else if (activePanel === 'chapters') {
+    content = chapters.length > 0
+      ? <ChapterCards chapters={chapters} onSeek={onSeek} textColor={textColor} u={u} />
+      : message('No chapters yet.');
+  } else if (activePanel === 'moments') {
+    content = keyMoments.length > 0
+      ? <MomentCards keyMoments={keyMoments} onSeek={onSeek} source={source} textColor={textColor} u={u} />
+      : message('No key moments yet.');
+  } else {
+    content = (transcript?.cues.length ?? 0) > 0 && transcript
+      ? <TranscriptPanel onSeek={onSeek} textColor={textColor} transcript={transcript} u={u} />
+      : message('No transcript yet.');
+  }
+  const showsCards = isCards && !loading && !error && (activePanel === 'chapters' ? chapters.length : keyMoments.length) > 0;
 
   return (
-    <View style={[styles.robotsPanel, { backgroundColor, maxHeight }]}>
-      {activePanel === 'summary' ? null : (
-        <Text style={[styles.robotsPanelTitle, { color: textColor }]}>{title}</Text>
-      )}
-      {loading ? (
-        <Text style={[styles.robotsPanelText, { color: textColor }]}>Generating results...</Text>
-      ) : error ? (
-        <Text style={[styles.robotsPanelText, { color: textColor }]}>{error}</Text>
-      ) : activePanel === 'summary' ? (
-        <SummaryPanel summary={summary} textColor={textColor} />
-      ) : activePanel === 'chapters' ? (
-        <ChapterPanel chapters={chapters} onSeek={onSeek} textColor={textColor} />
-      ) : activePanel === 'transcript' ? (
-        <TranscriptPanel transcript={transcript} onSeek={onSeek} textColor={textColor} />
-      ) : (
-        <KeyMomentsPanel keyMoments={keyMoments} onSeek={onSeek} textColor={textColor} />
-      )}
+    <View
+      style={[
+        styles.robotsPanel,
+        style,
+        {
+          backgroundColor,
+          borderRadius: u(DESIGN.panelRadius),
+          maxHeight,
+          paddingBottom: showsCards ? u(DESIGN.cardsPaddingBottom) : u(DESIGN.summaryPaddingY),
+          paddingHorizontal: showsCards ? 0 : u(DESIGN.summaryPaddingX),
+          paddingTop: showsCards ? u(DESIGN.cardsPaddingTop) : u(DESIGN.summaryPaddingY),
+        },
+      ]}
+    >
+      {content}
     </View>
+  );
+}
+
+function SummaryPanel({
+  summary,
+  textColor,
+  u,
+}: {
+  summary: MuxVideoSummary;
+  textColor: string;
+  u: Scale;
+}) {
+  const action = summaryCopyAction();
+  return (
+    <View style={styles.summaryBody}>
+      <View style={[styles.summaryHeader, { gap: u(DESIGN.menuPadding) }]}>
+        <Text
+          numberOfLines={2}
+          style={[styles.summaryTitle, { color: textColor, fontSize: u(DESIGN.titleText) }]}
+        >
+          {summary.title}
+        </Text>
+        <Pressable
+          accessibilityLabel={action === 'copy' ? 'Copy summary' : 'Share summary'}
+          accessibilityRole="button"
+          hitSlop={10}
+          onPress={() => {
+            copySummary(`${summary.title}\n\n${summary.description}`).catch(() => {
+              // Copying is a convenience; failures leave the summary on screen.
+            });
+          }}
+          style={({ pressed }) => pressed && styles.pressed}
+        >
+          <Text style={linkTextStyle(u, textColor)}>{action === 'copy' ? 'COPY' : 'SHARE'}</Text>
+        </Pressable>
+      </View>
+      <ScrollView showsVerticalScrollIndicator={false} style={[styles.summaryScroll, { marginTop: u(14) }]}>
+        <Text style={[styles.panelText, { color: textColor, fontSize: u(DESIGN.text), lineHeight: u(DESIGN.bodyLineHeight) }]}>
+          {summary.description}
+        </Text>
+      </ScrollView>
+    </View>
+  );
+}
+
+function ChapterCards({
+  chapters,
+  onSeek,
+  textColor,
+  u,
+}: {
+  chapters: MuxVideoChapter[];
+  onSeek: (time: number) => void;
+  textColor: string;
+  u: Scale;
+}) {
+  return (
+    <FadingCardRow
+      cardWidths={chapters.map(() => u(DESIGN.cardWidth))}
+      gap={u(DESIGN.cardGap)}
+      paddingX={u(DESIGN.cardsPaddingX)}
+    >
+      {chapters.map(chapter => (
+        <Pressable
+          accessibilityLabel={`Seek to chapter ${chapter.title}`}
+          accessibilityRole="button"
+          key={`${chapter.startTime}-${chapter.title}`}
+          onPress={() => onSeek(chapter.startTime)}
+          style={({ pressed }) => [cardStyle(u, DESIGN.cardWidth), pressed && styles.pressed]}
+        >
+          <Text numberOfLines={2} style={[styles.barText, { color: textColor, fontSize: u(DESIGN.text) }]}>
+            {chapter.title}
+          </Text>
+          <Text style={[styles.barText, styles.tabular, { color: textColor, fontSize: u(DESIGN.text) }]}>
+            {formatClock(chapter.startTime)}
+          </Text>
+        </Pressable>
+      ))}
+    </FadingCardRow>
+  );
+}
+
+function MomentCards({
+  keyMoments,
+  onSeek,
+  source,
+  textColor,
+  u,
+}: {
+  keyMoments: MuxVideoKeyMoment[];
+  onSeek: (time: number) => void;
+  source?: NormalizedMuxVideoSource;
+  textColor: string;
+  u: Scale;
+}) {
+  const [failedThumbnails, setFailedThumbnails] = React.useState<Record<string, true>>({});
+  const thumbnailFor = (moment: MuxVideoKeyMoment) =>
+    source && !failedThumbnails[momentKey(moment)]
+      ? buildMuxThumbnailUrl(source, {
+          time: Math.floor(moment.startTime),
+          width: 608,
+          token: source.thumbnailToken,
+        })
+      : undefined;
+  const widthFor = (moment: MuxVideoKeyMoment) =>
+    thumbnailFor(moment) ? DESIGN.momentCardWidth : DESIGN.cardWidth;
+
+  return (
+    <FadingCardRow
+      cardWidths={keyMoments.map(moment => u(widthFor(moment)))}
+      gap={u(DESIGN.cardGap)}
+      paddingX={u(DESIGN.cardsPaddingX)}
+    >
+      {keyMoments.map(moment => {
+        const thumbnail = thumbnailFor(moment);
+        const key = momentKey(moment);
+        return (
+          <Pressable
+            accessibilityLabel={`Seek to key moment ${moment.title}`}
+            accessibilityRole="button"
+            key={key}
+            onPress={() => onSeek(moment.startTime)}
+            style={({ pressed }) => [
+              cardStyle(u, widthFor(moment)),
+              thumbnail ? styles.momentWithThumbnail : null,
+              thumbnail ? { paddingLeft: 0 } : null,
+              pressed && styles.pressed,
+            ]}
+          >
+            {thumbnail ? (
+              <Image
+                accessible={false}
+                onError={() => setFailedThumbnails(current => ({ ...current, [key]: true }))}
+                source={{ uri: thumbnail }}
+                style={{
+                  borderBottomLeftRadius: u(DESIGN.cardRadius - 1),
+                  borderTopLeftRadius: u(DESIGN.cardRadius - 1),
+                  height: '100%',
+                  marginRight: u(DESIGN.cardPadding),
+                  width: u(DESIGN.momentThumbWidth),
+                }}
+              />
+            ) : null}
+            <View style={styles.momentText}>
+              <Text numberOfLines={1} style={[styles.barText, { color: textColor, fontSize: u(DESIGN.text) }]}>
+                {moment.title}
+              </Text>
+              {moment.description ? (
+                <Text numberOfLines={1} style={[styles.smallText, { color: textColor, fontSize: u(DESIGN.smallText), lineHeight: u(DESIGN.smallLineHeight) }]}>
+                  {moment.description}
+                </Text>
+              ) : null}
+              <Text numberOfLines={1} style={[styles.smallText, styles.tabular, { color: textColor, fontSize: u(DESIGN.smallText), lineHeight: u(DESIGN.smallLineHeight) }]}>
+                {formatClock(moment.startTime)}-{formatClock(moment.endTime)}
+                {Number.isFinite(moment.score) ? (
+                  <Text style={styles.scoreText}>{` • Score: ${(moment.score as number).toFixed(2)}`}</Text>
+                ) : null}
+              </Text>
+            </View>
+          </Pressable>
+        );
+      })}
+    </FadingCardRow>
   );
 }
 
@@ -1565,29 +2109,27 @@ function TranscriptPanel({
   onSeek,
   textColor,
   transcript,
+  u,
 }: {
   onSeek: (time: number) => void;
   textColor: string;
-  transcript?: MuxVideoTranscript;
+  transcript: MuxVideoTranscript;
+  u: Scale;
 }) {
-  const cues = transcript?.cues ?? [];
-  if (cues.length === 0) {
-    return <Text style={[styles.robotsPanelText, { color: textColor }]}>No transcript yet.</Text>;
-  }
   return (
-    <ScrollView showsVerticalScrollIndicator={false} style={styles.transcriptScroll}>
-      {cues.map((cue, index) => (
+    <ScrollView showsVerticalScrollIndicator={false} style={styles.summaryScroll}>
+      {transcript.cues.map((cue, index) => (
         <Pressable
-          accessibilityLabel={`Seek to ${formatTime(cue.startTime)}`}
+          accessibilityLabel={`Seek to ${formatClock(cue.startTime)}`}
           accessibilityRole="button"
           key={`${cue.startTime}-${index}`}
           onPress={() => onSeek(cue.startTime)}
-          style={({ pressed }) => [styles.transcriptCue, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.transcriptCue, { gap: u(DESIGN.cardPadding), paddingVertical: u(8) }, pressed && styles.pressed]}
         >
-          <Text style={[styles.transcriptTime, { color: textColor }]}>
-            {formatTime(cue.startTime)}
+          <Text style={[styles.smallText, styles.tabular, { color: textColor, fontSize: u(DESIGN.smallText), lineHeight: u(DESIGN.bodyLineHeight), width: u(96) }]}>
+            {formatClock(cue.startTime)}
           </Text>
-          <Text style={[styles.transcriptText, { color: textColor }]}>
+          <Text style={[styles.panelText, styles.transcriptText, { color: textColor, fontSize: u(DESIGN.text), lineHeight: u(DESIGN.bodyLineHeight) }]}>
             {cue.speaker ? `${cue.speaker}: ` : ''}
             {cue.text}
           </Text>
@@ -1597,555 +2139,28 @@ function TranscriptPanel({
   );
 }
 
-function SummaryPanel({
-  summary,
-  textColor,
-}: {
-  summary?: MuxVideoSummary;
-  textColor: string;
-}) {
-  if (!summary) {
-    return <Text style={[styles.robotsPanelText, { color: textColor }]}>No summary yet.</Text>;
+function cardStyle(u: Scale, width: number) {
+  return {
+    borderColor: DESIGN_COLORS.text,
+    borderRadius: u(DESIGN.cardRadius),
+    borderWidth: u(DESIGN.cardBorder),
+    height: u(DESIGN.cardHeight),
+    justifyContent: 'center' as const,
+    overflow: 'hidden' as const,
+    paddingHorizontal: u(DESIGN.cardPadding),
+    width: u(width),
+  };
+}
+
+function momentKey(moment: MuxVideoKeyMoment): string {
+  return `${moment.startTime}-${moment.endTime}-${moment.title}`;
+}
+
+function stripUndefined<T extends object>(value?: T): Partial<T> {
+  if (!value) {
+    return {};
   }
-  return (
-    <View style={styles.robotsPanelBody}>
-      <Text numberOfLines={2} style={[styles.summaryTitle, { color: textColor }]}>
-        {summary.title}
-      </Text>
-      <ScrollView showsVerticalScrollIndicator={false} style={styles.summaryScroll}>
-        <Text style={[styles.robotsPanelText, { color: textColor }]}>
-          {summary.description}
-        </Text>
-      </ScrollView>
-    </View>
-  );
-}
-
-function ChapterPanel({
-  chapters,
-  onSeek,
-  textColor,
-}: {
-  chapters: MuxVideoChapter[];
-  onSeek: (time: number) => void;
-  textColor: string;
-}) {
-  if (chapters.length === 0) {
-    return <Text style={[styles.robotsPanelText, { color: textColor }]}>No chapters yet.</Text>;
-  }
-  return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.robotsScrollContent}
-      style={styles.robotsScroll}
-    >
-      {chapters.map(chapter => (
-        <Pressable
-          accessibilityLabel={`Seek to chapter ${chapter.title}`}
-          accessibilityRole="button"
-          key={`${chapter.startTime}-${chapter.title}`}
-          onPress={() => onSeek(chapter.startTime)}
-          style={({ pressed }) => [styles.robotsListItem, pressed && styles.pressed]}
-        >
-          <Text style={[styles.robotsItemTime, { color: textColor }]}>
-            {formatTime(chapter.startTime)}
-          </Text>
-          <Text numberOfLines={2} style={[styles.robotsItemTitle, { color: textColor }]}>
-            {chapter.title}
-          </Text>
-        </Pressable>
-      ))}
-    </ScrollView>
-  );
-}
-
-function KeyMomentsPanel({
-  keyMoments,
-  onSeek,
-  textColor,
-}: {
-  keyMoments: MuxVideoKeyMoment[];
-  onSeek: (time: number) => void;
-  textColor: string;
-}) {
-  if (keyMoments.length === 0) {
-    return <Text style={[styles.robotsPanelText, { color: textColor }]}>No key moments yet.</Text>;
-  }
-  return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.robotsScrollContent}
-      style={styles.robotsScroll}
-    >
-      {keyMoments.map(moment => (
-        <Pressable
-          accessibilityLabel={`Seek to key moment ${moment.title}`}
-          accessibilityRole="button"
-          key={`${moment.startTime}-${moment.endTime}-${moment.title}`}
-          onPress={() => onSeek(moment.startTime)}
-          style={({ pressed }) => [styles.robotsListItem, pressed && styles.pressed]}
-        >
-          <Text style={[styles.robotsItemTime, { color: textColor }]}>
-            {formatTime(moment.startTime)} - {formatTime(moment.endTime)}
-          </Text>
-          <Text numberOfLines={2} style={[styles.robotsItemTitle, { color: textColor }]}>
-            {moment.title}
-          </Text>
-          {moment.description ? (
-            <Text numberOfLines={1} style={[styles.robotsItemDescription, { color: textColor }]}>
-              {moment.description}
-            </Text>
-          ) : null}
-        </Pressable>
-      ))}
-    </ScrollView>
-  );
-}
-
-function SettingsPanel({
-  accentColor,
-  backgroundColor,
-  currentMaxResolution,
-  currentRate,
-  maxHeight,
-  onSelectRate,
-  onSelectResolution,
-  showQuality,
-  showSpeed,
-  textColor,
-}: {
-  accentColor: string;
-  backgroundColor: string;
-  currentMaxResolution?: MuxMaxResolution;
-  currentRate: number;
-  maxHeight: number;
-  onSelectRate: (rate: number) => void;
-  onSelectResolution: (resolution?: MuxMaxResolution) => void;
-  showQuality: boolean;
-  showSpeed: boolean;
-  textColor: string;
-}) {
-  return (
-    <View style={[styles.settingsPanel, { backgroundColor, maxHeight }]}>
-      <ScrollView
-        bounces={false}
-        contentContainerStyle={styles.settingsScrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {showSpeed ? (
-          <View style={styles.settingsSection}>
-            <Text style={[styles.settingsTitle, { color: textColor }]}>Speed</Text>
-            <ScrollView
-              horizontal
-              bounces={false}
-              contentContainerStyle={styles.settingsOptionRow}
-              showsHorizontalScrollIndicator={false}
-            >
-              {SPEED_OPTIONS.map(rate => (
-                <SettingsChip
-                  accentColor={accentColor}
-                  active={Math.abs(currentRate - rate) < 0.001}
-                  key={rate}
-                  label={rate === 1 ? 'Normal' : `${rate}×`}
-                  onPress={() => onSelectRate(rate)}
-                  textColor={textColor}
-                />
-              ))}
-            </ScrollView>
-          </View>
-        ) : null}
-        {showQuality ? (
-          <View style={styles.settingsSection}>
-            <Text style={[styles.settingsTitle, { color: textColor }]}>Quality</Text>
-            <ScrollView
-              horizontal
-              bounces={false}
-              contentContainerStyle={styles.settingsOptionRow}
-              showsHorizontalScrollIndicator={false}
-            >
-              <SettingsChip
-                accentColor={accentColor}
-                active={currentMaxResolution == null}
-                label="Auto"
-                onPress={() => onSelectResolution(undefined)}
-                textColor={textColor}
-              />
-              {QUALITY_OPTIONS.map(resolution => (
-                <SettingsChip
-                  accentColor={accentColor}
-                  active={currentMaxResolution === resolution}
-                  key={resolution}
-                  label={resolution}
-                  onPress={() => onSelectResolution(resolution)}
-                  textColor={textColor}
-                />
-              ))}
-            </ScrollView>
-          </View>
-        ) : null}
-      </ScrollView>
-    </View>
-  );
-}
-
-function SettingsChip({
-  accentColor,
-  active,
-  label,
-  onPress,
-  textColor,
-}: {
-  accentColor: string;
-  active: boolean;
-  label: string;
-  onPress: () => void;
-  textColor: string;
-}) {
-  return (
-    <Pressable
-      accessibilityLabel={label}
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.settingsChip,
-        active && { backgroundColor: accentColor, borderColor: accentColor },
-        pressed && styles.pressed,
-      ]}
-    >
-      <Text numberOfLines={1} style={[styles.settingsChipText, { color: textColor }]}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
-function CaptionTracksPanel({
-  accentColor,
-  audioTracks,
-  backgroundColor,
-  captionTracks,
-  maxHeight,
-  onSelectAudioTrack,
-  onSelectCaptionTrack,
-  selectedAudioTrackId,
-  selectedCaptionTrackId,
-  showAudio,
-  showCaptions,
-  textColor,
-}: {
-  accentColor: string;
-  audioTracks: MuxVideoAudioTrack[];
-  backgroundColor: string;
-  captionTracks: MuxVideoCaptionTrack[];
-  maxHeight: number;
-  onSelectAudioTrack: (trackId: string) => void;
-  onSelectCaptionTrack: (trackId: string | null) => void;
-  selectedAudioTrackId: string | null;
-  selectedCaptionTrackId: string | null;
-  showAudio: boolean;
-  showCaptions: boolean;
-  textColor: string;
-}) {
-  return (
-    <View style={[styles.settingsPanel, { backgroundColor, maxHeight }]}>
-      <ScrollView
-        bounces={false}
-        contentContainerStyle={styles.settingsScrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {showCaptions ? (
-          <View style={styles.settingsSection}>
-            <Text style={[styles.settingsTitle, { color: textColor }]}>Captions</Text>
-            <ScrollView
-              horizontal
-              bounces={false}
-              contentContainerStyle={styles.settingsOptionRow}
-              showsHorizontalScrollIndicator={false}
-            >
-              <SettingsChip
-                accentColor={accentColor}
-                active={selectedCaptionTrackId === null}
-                label="Off"
-                onPress={() => onSelectCaptionTrack(null)}
-                textColor={textColor}
-              />
-              {captionTracks.map(track => (
-                <SettingsChip
-                  accentColor={accentColor}
-                  active={selectedCaptionTrackId === track.id}
-                  key={track.id}
-                  label={track.label || track.language || 'Caption track'}
-                  onPress={() => onSelectCaptionTrack(track.id)}
-                  textColor={textColor}
-                />
-              ))}
-            </ScrollView>
-          </View>
-        ) : null}
-        {showAudio ? (
-          <View style={styles.settingsSection}>
-            <Text style={[styles.settingsTitle, { color: textColor }]}>Audio</Text>
-            <ScrollView
-              horizontal
-              bounces={false}
-              contentContainerStyle={styles.settingsOptionRow}
-              showsHorizontalScrollIndicator={false}
-            >
-              {audioTracks.map(track => (
-                <SettingsChip
-                  accentColor={accentColor}
-                  active={selectedAudioTrackId === track.id}
-                  key={track.id}
-                  label={track.label || track.language || 'Audio track'}
-                  onPress={() => onSelectAudioTrack(track.id)}
-                  textColor={textColor}
-                />
-              ))}
-            </ScrollView>
-          </View>
-        ) : null}
-      </ScrollView>
-    </View>
-  );
-}
-
-function PlayIcon({ color, size }: { color: string; size: number }) {
-  const half = size * 0.18;
-  return (
-    <View
-      pointerEvents="none"
-      style={{
-        borderBottomColor: 'transparent',
-        borderBottomWidth: half,
-        borderLeftColor: color,
-        borderLeftWidth: half * 1.15,
-        borderTopColor: 'transparent',
-        borderTopWidth: half,
-        height: 0,
-        marginLeft: half * 0.3,
-        width: 0,
-      }}
-    />
-  );
-}
-
-function PauseIcon({ color, size }: { color: string; size: number }) {
-  const barWidth = size * 0.1;
-  const barHeight = size * 0.36;
-  return (
-    <View pointerEvents="none" style={{ alignItems: 'center', flexDirection: 'row', gap: barWidth * 1.1 }}>
-      <View style={{ backgroundColor: color, borderRadius: 2, height: barHeight, width: barWidth }} />
-      <View style={{ backgroundColor: color, borderRadius: 2, height: barHeight, width: barWidth }} />
-    </View>
-  );
-}
-
-function SkipIcon({
-  color,
-  direction,
-  seconds,
-  size,
-}: {
-  color: string;
-  direction: 'back' | 'forward';
-  seconds: number;
-  size: number;
-}) {
-  const arrowFontSize = Math.round(size * 0.66);
-  const numberFontSize = Math.round(size * 0.19);
-  // The number sits in the arrow's hollow centre. We centre it with flexbox
-  // (consistent across platforms) and apply a tiny platform-specific nudge to
-  // line up with the glyph's optical centre — iOS and Android differ in text
-  // baseline/padding, so a single nudge can't fit both.
-  const numberNudge = Platform.select({ ios: Math.round(size * 0.06), default: 0 });
-  return (
-    <View
-      pointerEvents="none"
-      style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}
-    >
-      <Text
-        allowFontScaling={false}
-        style={{
-          color,
-          fontSize: arrowFontSize,
-          // Generous line height so the tall ↺/↻ glyphs are never clipped.
-          lineHeight: size,
-          fontWeight: '600',
-          textAlign: 'center',
-          includeFontPadding: false,
-        }}
-      >
-        {direction === 'back' ? '↺' : '↻'}
-      </Text>
-      <View
-        pointerEvents="none"
-        style={[
-          StyleSheet.absoluteFill,
-          { alignItems: 'center', justifyContent: 'center', transform: [{ translateY: numberNudge }] },
-        ]}
-      >
-        <Text
-          allowFontScaling={false}
-          style={{
-            color,
-            fontSize: numberFontSize,
-            fontWeight: '800',
-            textAlign: 'center',
-            includeFontPadding: false,
-          }}
-        >
-          {seconds}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-function CaptionsIcon({
-  active,
-  color,
-  size,
-}: {
-  active: boolean;
-  color: string;
-  size: number;
-}) {
-  return (
-    <View
-      pointerEvents="none"
-      style={[
-        styles.captionsIconFrame,
-        {
-          borderColor: color,
-          height: Math.round(size * 0.58),
-          width: Math.round(size * 0.78),
-        },
-      ]}
-    >
-      <Text
-        allowFontScaling={false}
-        style={[
-          styles.captionsIconText,
-          {
-            color,
-            fontSize: Math.max(8, Math.round(size * 0.24)),
-            opacity: active ? 1 : 0.72,
-          },
-        ]}
-      >
-        CC
-      </Text>
-    </View>
-  );
-}
-
-function SettingsIcon({ color, size }: { color: string; size: number }) {
-  // Drawn "adjust" (sliders) icon to match the other white vector controls,
-  // rather than the multicolor ⚙ system emoji.
-  const trackWidth = Math.round(size * 0.66);
-  const stroke = Math.max(1.5, Math.round(size * 0.08));
-  const knob = Math.max(5, Math.round(size * 0.26));
-  const rowGap = Math.round(size * 0.2);
-
-  const renderRow = (key: string, knobLeft: number) => (
-    <View key={key} style={{ width: trackWidth, height: knob, justifyContent: 'center' }}>
-      <View style={{ height: stroke, borderRadius: stroke, backgroundColor: color }} />
-      <View
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: knobLeft,
-          width: knob,
-          height: knob,
-          borderRadius: knob / 2,
-          backgroundColor: color,
-        }}
-      />
-    </View>
-  );
-
-  return (
-    <View
-      pointerEvents="none"
-      style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center', gap: rowGap }}
-    >
-      {renderRow('top', Math.round(trackWidth * 0.12))}
-      {renderRow('bottom', Math.round(trackWidth - knob - trackWidth * 0.12))}
-    </View>
-  );
-}
-
-function FullscreenIcon({
-  color,
-  expanded,
-  size,
-}: {
-  color: string;
-  expanded: boolean;
-  size: number;
-}) {
-  const stroke = Math.max(2, Math.round(size * 0.1));
-  const arm = Math.round(size * 0.36);
-  const inset = expanded ? Math.round(size * 0.24) : Math.round(size * 0.2);
-  const cornerStyle = (
-    vertical: 'top' | 'bottom',
-    horizontal: 'left' | 'right'
-  ) => ({
-    [vertical]: inset,
-    [horizontal]: inset,
-  });
-  const armStyle = (
-    vertical: 'top' | 'bottom',
-    horizontal: 'left' | 'right',
-    orientation: 'horizontal' | 'vertical'
-  ) => ({
-    position: 'absolute' as const,
-    backgroundColor: color,
-    borderRadius: stroke,
-    width: orientation === 'horizontal' ? arm : stroke,
-    height: orientation === 'horizontal' ? stroke : arm,
-    [vertical]: 0,
-    [horizontal]: 0,
-  });
-  const renderBracket = (
-    key: string,
-    vertical: 'top' | 'bottom',
-    horizontal: 'left' | 'right'
-  ) => (
-    <View
-      key={key}
-      style={{ position: 'absolute', ...cornerStyle(vertical, horizontal) }}
-    >
-      <View style={armStyle(vertical, horizontal, 'horizontal')} />
-      <View style={armStyle(vertical, horizontal, 'vertical')} />
-    </View>
-  );
-  return (
-    <View pointerEvents="none" style={{ height: size, width: size }}>
-      {expanded
-        ? [
-            renderBracket('tr', 'top', 'right'),
-            renderBracket('bl', 'bottom', 'left'),
-          ]
-        : [
-            renderBracket('tl', 'top', 'left'),
-            renderBracket('br', 'bottom', 'right'),
-          ]}
-    </View>
-  );
-}
-
-function formatTime(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds <= 0) {
-    return '0:00';
-  }
-  const totalSeconds = Math.floor(seconds);
-  const minutes = Math.floor(totalSeconds / 60);
-  const remainingSeconds = totalSeconds % 60;
-  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as Partial<T>;
 }
 
 function runPlayerCommand(command: Promise<void>): void {
@@ -2169,20 +2184,12 @@ const styles = StyleSheet.create({
   controlsRoot: {
     overflow: 'hidden',
   },
-  centerWrap: {
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    top: 0,
+  center: {
     alignItems: 'center',
-    gap: 20,
     justifyContent: 'center',
-    overflow: 'hidden',
-    paddingHorizontal: 16,
   },
   gradientTop: {
-    height: '32%',
+    height: FADE_HEIGHT,
     left: 0,
     position: 'absolute',
     right: 0,
@@ -2190,7 +2197,7 @@ const styles = StyleSheet.create({
   },
   gradientBottom: {
     bottom: 0,
-    height: '40%',
+    height: FADE_HEIGHT,
     left: 0,
     position: 'absolute',
     right: 0,
@@ -2198,356 +2205,136 @@ const styles = StyleSheet.create({
   centerCluster: {
     alignItems: 'center',
     flexDirection: 'row',
-  },
-  centerClusterHidden: {
-    opacity: 0,
-  },
-  airPlayPill: {
-    borderColor: frostBorderColor,
-    borderRadius: 999,
-    borderWidth: frostBorderWidth,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
-  airPlayPillText: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  timeline: {
-    bottom: 6,
-    gap: 4,
-    left: 16,
-    minWidth: 0,
-    position: 'absolute',
-    right: 16,
-  },
-  trackHitArea: {
-    borderColor: frostBorderColor,
-    borderRadius: 999,
-    borderWidth: frostBorderWidth,
     justifyContent: 'center',
-    minWidth: 0,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-  },
-  track: {
-    overflow: 'hidden',
-    width: '100%',
-  },
-  trackFill: {
-    bottom: 0,
-    left: 0,
     position: 'absolute',
-    top: 0,
   },
-  momentRange: {
-    bottom: 0,
-    opacity: 0.45,
+  airPlayRow: {
+    alignItems: 'center',
     position: 'absolute',
-    top: 0,
   },
-  chapterMarker: {
-    bottom: 0,
-    opacity: 0.85,
+  topRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    justifyContent: 'center',
     position: 'absolute',
-    top: 0,
-    width: 2,
   },
-  timeRow: {
+  moreAnchor: {
+    alignItems: 'flex-end',
+    position: 'absolute',
+  },
+  moreMenu: {
+    alignItems: 'flex-end',
+  },
+  menuRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
+  },
+  tabContent: {
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  bar: {
+    position: 'absolute',
+  },
+  barRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
     minWidth: 0,
   },
-  timeControls: {
+  barTitle: {
+    flex: 1,
+    minWidth: 0,
+  },
+  barIcons: {
     alignItems: 'center',
     flexDirection: 'row',
     flexShrink: 0,
-    gap: 8,
-    justifyContent: 'flex-end',
   },
-  captionControlWrap: {
-    position: 'relative',
+  barText: {
+    fontWeight: FONT.semibold,
+    includeFontPadding: false,
   },
-  timePill: {
-    borderColor: frostBorderColor,
-    borderRadius: 999,
-    borderWidth: frostBorderWidth,
-    flexShrink: 1,
-    minWidth: 0,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  tabular: {
+    fontVariant: ['tabular-nums'],
   },
-  timeText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  livePill: {
+  liveRow: {
     alignItems: 'center',
-    borderColor: frostBorderColor,
-    borderRadius: 999,
-    borderWidth: frostBorderWidth,
+    alignSelf: 'flex-start',
     flexDirection: 'row',
-    gap: 6,
-    paddingVertical: 4,
   },
-  liveDot: {
-    borderRadius: 4,
-    height: 8,
-    width: 8,
-  },
-  liveText: {
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+  trackHitArea: {
+    flex: 1,
+    justifyContent: 'center',
+    minWidth: 0,
   },
   scrubPreview: {
     backgroundColor: '#000',
-    borderColor: frostBorderColor,
-    borderRadius: 10,
-    borderWidth: frostBorderWidth,
-    bottom: '100%',
-    marginBottom: 10,
     overflow: 'hidden',
     position: 'absolute',
   },
   scrubPreviewTimeRow: {
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    backgroundColor: DESIGN_COLORS.surface,
     bottom: 0,
     left: 0,
-    paddingVertical: 2,
     position: 'absolute',
     right: 0,
   },
-  scrubPreviewTime: {
-    color: '#f8fbff',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  chapterPillRow: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-  },
-  chapterPill: {
-    borderColor: frostBorderColor,
-    borderRadius: 999,
-    borderWidth: frostBorderWidth,
-    maxWidth: 140,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  chapterPillText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  robotsDock: {
-    alignItems: 'center',
-    left: 0,
+  anchoredPanel: {
+    overflow: 'hidden',
     position: 'absolute',
     right: 0,
   },
-  robotsArea: {
-    alignItems: 'center',
-    gap: 6,
-    maxWidth: 420,
-    width: '100%',
-  },
-  robotsButtonRow: {
+  chipRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-    paddingVertical: 1,
   },
-  robotsButtonScroller: {
-    maxWidth: '100%',
-    width: '100%',
-  },
-  robotsButton: {
-    alignItems: 'center',
-    borderRadius: 999,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 4,
-    marginHorizontal: 3,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-  },
-  robotsButtonImage: {
-    height: 18,
-    resizeMode: 'contain',
-    width: 18,
-  },
-  robotsButtonText: {
-    fontSize: 11,
-    fontWeight: '800',
+  chipScroller: {
+    flexGrow: 0,
+    flexShrink: 1,
   },
   robotsPanel: {
-    borderColor: frostBorderColor,
-    borderRadius: 16,
-    borderWidth: frostBorderWidth,
-    gap: 6,
-    left: 0,
-    marginTop: 6,
     overflow: 'hidden',
-    padding: 10,
     position: 'absolute',
-    right: 0,
-    top: '100%',
   },
-  robotsPanelTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    lineHeight: 16,
+  panelText: {
+    fontWeight: FONT.regular,
   },
-  robotsPanelBody: {
+  smallText: {
+    fontWeight: FONT.light,
+  },
+  scoreText: {
+    fontWeight: FONT.bold,
+  },
+  summaryBody: {
     flexShrink: 1,
-    gap: 6,
   },
-  robotsPanelText: {
-    fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 16,
-    opacity: 0.92,
+  summaryHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
   },
   summaryTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    lineHeight: 18,
-  },
-  tagRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  tagPill: {
-    backgroundColor: 'rgba(248, 251, 255, 0.08)',
-    borderColor: frostBorderColor,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    maxWidth: 120,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  tagText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  robotsScroll: {
-    flexGrow: 0,
-    maxHeight: 80,
-  },
-  robotsScrollContent: {
-    alignItems: 'stretch',
-  },
-  transcriptScroll: {
-    flexGrow: 0,
-    flexShrink: 1,
+    flex: 1,
+    fontWeight: FONT.semibold,
   },
   summaryScroll: {
     flexGrow: 0,
     flexShrink: 1,
   },
+  momentWithThumbnail: {
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  momentText: {
+    flex: 1,
+    minWidth: 0,
+  },
   transcriptCue: {
     flexDirection: 'row',
-    gap: 8,
-    paddingVertical: 4,
-  },
-  transcriptTime: {
-    fontSize: 11,
-    fontWeight: '800',
-    opacity: 0.7,
-    width: 44,
   },
   transcriptText: {
     flex: 1,
-    fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 16,
-  },
-  robotsListItem: {
-    backgroundColor: 'rgba(248, 251, 255, 0.08)',
-    borderColor: frostBorderColor,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    height: 78,
-    justifyContent: 'flex-start',
-    marginRight: 8,
-    overflow: 'hidden',
-    paddingHorizontal: 8,
-    paddingVertical: 7,
-    width: 152,
-  },
-  robotsItemTime: {
-    fontSize: 11,
-    fontWeight: '800',
-    lineHeight: 14,
-    marginBottom: 2,
-    opacity: 0.78,
-  },
-  robotsItemTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    lineHeight: 15,
-  },
-  robotsItemDescription: {
-    fontSize: 11,
-    fontWeight: '600',
-    lineHeight: 13,
-    marginTop: 2,
-    opacity: 0.82,
-  },
-  settingsPanel: {
-    borderColor: frostBorderColor,
-    borderRadius: 14,
-    borderWidth: frostBorderWidth,
-    bottom: 34,
-    maxWidth: 260,
-    minWidth: 200,
-    padding: 10,
-    position: 'absolute',
-    right: 0,
-  },
-  settingsScrollContent: {
-    gap: 10,
-  },
-  settingsSection: {
-    gap: 6,
-  },
-  settingsTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    opacity: 0.85,
-  },
-  settingsOptionRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 6,
-    paddingRight: 2,
-  },
-  settingsChip: {
-    backgroundColor: 'rgba(248, 251, 255, 0.08)',
-    borderColor: frostBorderColor,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  settingsChipText: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  captionsIconFrame: {
-    alignItems: 'center',
-    borderRadius: 4,
-    borderWidth: 2,
-    justifyContent: 'center',
-  },
-  captionsIconText: {
-    fontWeight: '900',
-    letterSpacing: 0.4,
   },
   pressed: {
     opacity: 0.6,

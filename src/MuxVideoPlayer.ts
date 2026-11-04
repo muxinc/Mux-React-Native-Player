@@ -14,8 +14,10 @@ import { normalizeMuxVideoSource } from './normalizeSource';
 
 type Listener = () => void;
 type NativeCommand = keyof MuxNativeViewRef;
+let nextSourceId = 0;
 
 export type MuxVideoPlayerSnapshot = {
+  playbackIntentRevision: number;
   source?: NormalizedMuxVideoSource;
   shouldPlay: boolean;
   muted: boolean;
@@ -49,6 +51,7 @@ export class MuxVideoPlayer {
   private nativeRef?: MuxNativeViewRef | null;
   private listeners = new Set<Listener>();
   private pendingCommands: Array<() => Promise<void>> = [];
+  private playbackIntentRevision = 0;
   private statusState: MuxPlayerStatus = { ...idleStatus };
   private snapshot: MuxVideoPlayerSnapshot = this.createSnapshot();
   private shouldPlay = false;
@@ -61,7 +64,7 @@ export class MuxVideoPlayer {
 
   constructor(source?: MuxVideoSource) {
     if (source != null) {
-      this.source = normalizeMuxVideoSource(source);
+      this.source = { ...normalizeMuxVideoSource(source), sourceId: String(++nextSourceId) };
       this.statusState = { ...this.statusState, status: 'loading' };
       this.updateSnapshot();
     }
@@ -92,6 +95,7 @@ export class MuxVideoPlayer {
   }
 
   play(): Promise<void> {
+    this.playbackIntentRevision++;
     this.shouldPlay = true;
     this.updateSnapshot();
     this.emitChange();
@@ -99,6 +103,7 @@ export class MuxVideoPlayer {
   }
 
   pause(): Promise<void> {
+    this.playbackIntentRevision++;
     this.shouldPlay = false;
     this.updateSnapshot();
     this.emitChange();
@@ -106,6 +111,7 @@ export class MuxVideoPlayer {
   }
 
   replay(): Promise<void> {
+    this.playbackIntentRevision++;
     this.shouldPlay = true;
     this.updateSnapshot();
     this.emitChange();
@@ -122,6 +128,7 @@ export class MuxVideoPlayer {
 
   /** Seek a live stream to the current live edge. No-op for VOD. */
   seekToLiveEdge(): Promise<void> {
+    this.playbackIntentRevision++;
     this.shouldPlay = true;
     this.updateSnapshot();
     this.emitChange();
@@ -202,7 +209,10 @@ export class MuxVideoPlayer {
   }
 
   replace(source: MuxVideoSource): void {
-    this.source = normalizeMuxVideoSource(source);
+    const normalized = normalizeMuxVideoSource(source);
+    if (this.source && sourceKey(this.source) === sourceKey(normalized)) return;
+    this.source = { ...normalized, sourceId: String(++nextSourceId) };
+    this.pendingCommands = [];
     this.resumeAt = null;
     this.statusState = { ...idleStatus, muted: this.muted, volume: this.volume, loop: this.loop, playbackRate: this.playbackRate, status: 'loading' };
     this.updateSnapshot();
@@ -210,13 +220,14 @@ export class MuxVideoPlayer {
   }
 
   release(): Promise<void> {
+    this.pendingCommands = [];
     this.shouldPlay = false;
     this.source = undefined;
     this.resumeAt = null;
     this.statusState = { ...idleStatus };
     this.updateSnapshot();
     this.emitChange();
-    return this.runNativeCommand('release');
+    return this.nativeRef ? this.runNativeCommand('release') : Promise.resolve();
   }
 
   _attachNativeRef(ref: MuxNativeViewRef | null): void {
@@ -242,7 +253,15 @@ export class MuxVideoPlayer {
 
   _getSnapshot = (): MuxVideoPlayerSnapshot => this.snapshot;
 
+  _isCurrentSourceEvent(event: { playbackId?: string; sourceId?: string; playbackIntentRevision?: number }): boolean {
+    return this.source != null &&
+      (event.playbackId === undefined || event.playbackId === this.source.playbackId) &&
+      (event.sourceId == null || event.sourceId === this.source.sourceId) &&
+      (event.playbackIntentRevision == null || event.playbackIntentRevision >= this.playbackIntentRevision);
+  }
+
   _handleStatusChange(event: MuxStatusChangeEvent): void {
+    if (!this._isCurrentSourceEvent(event)) return;
     this.statusState = {
       ...event,
       captionTracks: event.captionTracks ?? this.statusState.captionTracks ?? [],
@@ -261,9 +280,13 @@ export class MuxVideoPlayer {
       seekableStart: event.seekableStart ?? this.statusState.seekableStart ?? 0,
       seekableEnd: event.seekableEnd ?? this.statusState.seekableEnd ?? 0,
     };
-    if (this.statusState.status === 'playing') {
+    if (this.statusState.status === 'ended' || this.statusState.status === 'idle' || this.statusState.status === 'error') {
+      this.shouldPlay = false;
+    } else if (typeof event.playWhenReady === 'boolean') {
+      this.shouldPlay = event.playWhenReady;
+    } else if (this.statusState.status === 'playing') {
       this.shouldPlay = true;
-    } else if (this.statusState.status === 'ended' || this.statusState.status === 'idle' || this.statusState.status === 'error') {
+    } else if (this.statusState.status === 'paused') {
       this.shouldPlay = false;
     }
     this.muted = this.statusState.muted;
@@ -275,6 +298,7 @@ export class MuxVideoPlayer {
   }
 
   _handleTimeUpdate(event: MuxTimeUpdateEvent): void {
+    if (!this._isCurrentSourceEvent(event)) return;
     this.statusState = {
       ...this.statusState,
       currentTime: event.currentTime,
@@ -286,6 +310,7 @@ export class MuxVideoPlayer {
   }
 
   _handleSourceLoad(event: MuxSourceLoadEvent): void {
+    if (!this._isCurrentSourceEvent(event)) return;
     const resumeAt = this.resumeAt;
     this.resumeAt = null;
     this.statusState = {
@@ -327,6 +352,8 @@ export class MuxVideoPlayer {
   }
 
   _handleSourceError(event: MuxSourceErrorEvent): void {
+    if (!this._isCurrentSourceEvent(event)) return;
+    this.shouldPlay = false;
     this.statusState = {
       ...this.statusState,
       status: 'error',
@@ -370,6 +397,7 @@ export class MuxVideoPlayer {
 
   private createSnapshot(): MuxVideoPlayerSnapshot {
     return {
+      playbackIntentRevision: this.playbackIntentRevision,
       source: this.source,
       shouldPlay: this.shouldPlay,
       muted: this.muted,
@@ -394,6 +422,16 @@ function clamp(value: number, min: number, max: number): number {
     return min;
   }
   return Math.min(max, Math.max(min, value));
+}
+
+function sourceKey(source: NormalizedMuxVideoSource): string {
+  const { sourceId: _sourceId, ...value } = source;
+  return JSON.stringify(value, (_key, item) => {
+    if (item && typeof item === 'object' && !Array.isArray(item)) {
+      return Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b)));
+    }
+    return item;
+  });
 }
 
 function normalizeTrackId(

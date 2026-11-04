@@ -7,7 +7,8 @@
 A React native video player with built-in Mux Data and Mux Robots integrations. Native playback is delegated to:
 
 - iOS: [`muxinc/mux-player-swift`](https://github.com/muxinc/mux-player-swift)
-- Android: [`muxinc/mux-player-android`](https://github.com/muxinc/mux-player-android)
+- Android / Android TV: [`muxinc/mux-player-android`](https://github.com/muxinc/mux-player-android)
+- tvOS (preview): AVPlayer / AVPlayerViewController with Mux Data
 
 ## Documentation
 
@@ -19,10 +20,18 @@ Full guides live in [`docs/`](https://github.com/muxinc/Mux-React-Native-Player/
 - [Feeds & Shorts](https://github.com/muxinc/Mux-React-Native-Player/blob/main/docs/feeds.md) — `useMuxVideoFeed`
 - [Mux Robots](https://github.com/muxinc/Mux-React-Native-Player/blob/main/docs/robots.md)
 
+- [TV Support](docs/tv-support.md) — capabilities, limitations, and [TV example setup](example-tv/README.md)
+
 ## Requirements
 
-- React Native 0.75+ with Expo Modules
-- iOS 15+, Android minSdk 23+
+- Current workspace: Expo 57.0.22 with `react-native` aliased to `react-native-tvos@0.86.2-0` for mobile and TV native builds
+- The earlier mobile-only baseline used React Native 0.86.3; see [TV validation](docs/tv-validation.md) for current evidence
+- Baseline app minimums: iOS / tvOS 16.4+, Android minSdk 24+
+- Android compileSdk 37+ and AGP 9.1.1 / Gradle 9.3.1, with the [Expo 57 compatibility setup](docs/native-player-upgrade.md)
+
+The repository example includes the compatibility configuration and patches needed
+for this Android toolchain. Stock Expo 57 requires that setup before building Mux
+Player Android 1.6.0. Other Expo/React Native combinations are not verified by this baseline.
 
 ## Install
 
@@ -44,7 +53,7 @@ npm install @mux/mux-react-native-player
 ```
 
 ```sh
-npx expo prebuild
+npx expo prebuild --no-clean
 npx expo run:ios
 npx expo run:android
 ```
@@ -76,7 +85,7 @@ export default function Player() {
 }
 ```
 
-`controls`: `"native"` for platform controls, `"custom"` for the shared cross-platform JS controls, `"none"` for the bare video surface.
+`controls`: `"native"` for platform controls, `"custom"` for the mobile or TV JavaScript controls, `"none"` for the bare video surface. The TV overlay uses remote focus and includes Robots panels. With `"none"`, the TV host must provide its own accessible controls and exit navigation. See the [TV support guide](docs/tv-support.md) for preview limitations.
 
 ## Source Options
 
@@ -103,8 +112,8 @@ type MuxVideoSource = {
 ```
 
 - `metadata.envKey` enables Mux Data.
-- `drmToken` requires `playbackToken`.
-- The source is mutable — pass it from state and the player will reload when it changes.
+- `drmToken` requires `playbackToken`. tvOS rejects DRM sources in this preview; Android TV DRM is not certified.
+- The source is mutable — pass it from state and the player will reload when it changes. Replacing an equivalent source is a no-op; use `replay()` to restart it.
 
 ## Player Commands
 
@@ -141,4 +150,4 @@ When using `controls="custom"`, you can add Mux Robots buttons (summary, chapter
 />
 ```
 
-Buttons appear only for actions with a callback. Chapters render as timeline markers; key moments render as highlighted ranges. Selecting either seeks to its start time.
+Buttons appear only for actions with a callback. While the Chapters panel is open, chapters render as timeline markers; while the Moments panel is open, key moments render as highlighted ranges. Selecting either seeks to its start time.

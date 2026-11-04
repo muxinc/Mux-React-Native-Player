@@ -1,0 +1,374 @@
+{
+  "title": "Tears of Steel",
+  "assetId": "g1TbHCW39uACGx00gizzwU00GvYt4vkhNAq1QlF5NeBgU",
+  "playbackId": "6m6vzcjYiOhMdGFeChE4bCL02WV01fW1iXR8Kcql9lHnA",
+  "duration": 734.209333,
+  "provenance": {
+    "fetchedAt": "2026-10-24T19:47:00.099Z",
+    "jobs": [
+      {
+        "id": "rjob_OqPNEiukee01A028vXnPyr2DKjFCm7HGLgGZ8j8cUtPEbLW9Tbm1FB2cle3DpBrkNrV01vFX74LvH00",
+        "workflow": "summarize",
+        "createdAt": 1792016817
+      },
+      {
+        "id": "rjob_JvC49uNhuGnY7701yNHVSjIoPr9SHp8y01q8a302eJnHpdjjI02sYqJiaynKtHFW5tjG01LW9WAA02d9E",
+        "workflow": "generate-chapters",
+        "createdAt": 1792016817
+      },
+      {
+        "id": "rjob_cA000161Ow01PMTyzmt9MzkrtVwdQO5YoBnxNmoDxBhwZX2Y6Lk1BLM61hZBYgELU00aSYP68FhlKbI",
+        "workflow": "find-key-moments",
+        "createdAt": 1792016817
+      }
+    ],
+    "captionTrackId": "cSC9HEilp3qVh3cUuKTGi00DFd6vhhHTXf11Mo1M0101OYgd9p5MvArCA",
+    "captionLanguage": "en"
+  },
+  "robots": {
+    "summary": {
+      "title": "Celia, Robotics, and Space",
+      "tags": [
+        "robotics",
+        "robotic hand",
+        "artificial intelligence",
+        "memory override",
+        "science fiction",
+        "futuristic city",
+        "giant robots",
+        "space exploration",
+        "reconciliation",
+        "urban ruins"
+      ],
+      "description": "Celia and a man clash over her robotics and his dream of space, while memories and old hurt surface. In a futuristic city threatened by giant machines, the pair confront the past as a memory override progresses and their relationship begins to change."
+    },
+    "chapters": [
+      {
+        "startTime": 0,
+        "title": "Engines Start"
+      },
+      {
+        "startTime": 24,
+        "title": "Passions and the Robot Hand"
+      },
+      {
+        "startTime": 112,
+        "title": "Getting Ready"
+      },
+      {
+        "startTime": 194,
+        "title": "All Systems Go"
+      },
+      {
+        "startTime": 272,
+        "title": "Memory Override Begins"
+      },
+      {
+        "startTime": 346,
+        "title": "Confronting the Past"
+      },
+      {
+        "startTime": 503,
+        "title": "The World Has Changed"
+      },
+      {
+        "startTime": 558,
+        "title": "A Lesson Learned"
+      }
+    ],
+    "keyMoments": [
+      {
+        "startTime": 30.64,
+        "endTime": 42.88,
+        "title": "A Confession About Robot Glasses",
+        "description": "A friend challenges someone about fearing a robot hand, prompting an admission of fear and a nightmare about giant robotic glasses.",
+        "score": 0.86
+      },
+      {
+        "startTime": 315.44,
+        "endTime": 337.44,
+        "title": "Choosing Space Over Robotics",
+        "description": "One person says they must follow their passion for space while acknowledging Celia's interest in robotics.",
+        "score": 0.72
+      },
+      {
+        "startTime": 356.44,
+        "endTime": 390.44,
+        "title": "A Heartbreak Left On Earth",
+        "description": "An argument about a robot hand turns into a confrontation over a broken heart and being left behind on Earth.",
+        "score": 0.84
+      },
+      {
+        "startTime": 503.44,
+        "endTime": 540.44,
+        "title": "Abort The Memory Override",
+        "description": "A memory override reaches 90 percent as the crew calls for an abort, then the characters consider changing with the world.",
+        "score": 0.84
+      }
+    ],
+    "transcript": {
+      "cues": [
+        {
+          "startTime": 0,
+          "endTime": 24.6,
+          "text": "We have main engines start, 4, 3, 2, 1, come on!"
+        },
+        {
+          "startTime": 24.6,
+          "endTime": 27.44,
+          "text": "Look Celia, we have to follow our passions."
+        },
+        {
+          "startTime": 27.44,
+          "endTime": 30.64,
+          "text": "You have your robotics and I just want to be awesome in space."
+        },
+        {
+          "startTime": 30.64,
+          "endTime": 34.64,
+          "text": "Why don't you just admit that you're freaked out by my robot hand?"
+        },
+        {
+          "startTime": 34.64,
+          "endTime": 37.68,
+          "text": "I'm not freaked out, but it's..."
+        },
+        {
+          "startTime": 37.68,
+          "endTime": 38.68,
+          "text": "All right, fine."
+        },
+        {
+          "startTime": 38.68,
+          "endTime": 39.68,
+          "text": "I'm freaked out."
+        },
+        {
+          "startTime": 39.68,
+          "endTime": 42.88,
+          "text": "I'm having nightmares that I'm being chased by these giant robotic glasses."
+        },
+        {
+          "startTime": 42.88,
+          "endTime": 43.88,
+          "text": "Oh, I didn't do it!"
+        },
+        {
+          "startTime": 43.88,
+          "endTime": 44.88,
+          "text": "We're done."
+        },
+        {
+          "startTime": 44.88,
+          "endTime": 46.88,
+          "text": "We're done."
+        },
+        {
+          "startTime": 46.88,
+          "endTime": 53.88,
+          "text": "Robot's memory, synced, and locked."
+        },
+        {
+          "startTime": 58.44,
+          "endTime": 64.44,
+          "text": "This is pretty freaking."
+        },
+        {
+          "startTime": 87.44,
+          "endTime": 94.44,
+          "text": "I don't know if I'll be able to get out of here, but I'm not sure if I'll be able to get out of here."
+        },
+        {
+          "startTime": 94.44,
+          "endTime": 99.44,
+          "text": "I don't know if I'll be able to get out of here, but I'm not sure if I'll be able to get out of here."
+        },
+        {
+          "startTime": 99.44,
+          "endTime": 107.44,
+          "text": "I don't know if I'll be able to get out of here or if I'll be able to get out of here or if I'll be able to get out of here or if I'll be able to get out of here."
+        },
+        {
+          "startTime": 107.44,
+          "endTime": 112.44,
+          "text": "I don't know if I'll be able to get out of here or if I'll be able to get out of here or if I'll be able to get out of here or if I'll be able to get out of here."
+        },
+        {
+          "startTime": 112.44,
+          "endTime": 131.44,
+          "text": "Shouldn't you be down there?"
+        },
+        {
+          "startTime": 131.44,
+          "endTime": 136.44,
+          "text": "I heard you guys talking last night."
+        },
+        {
+          "startTime": 136.44,
+          "endTime": 141.44,
+          "text": "It's not my fault, you know?"
+        },
+        {
+          "startTime": 143.44,
+          "endTime": 149.44,
+          "text": "It's not my fault, you know?"
+        },
+        {
+          "startTime": 149.44,
+          "endTime": 154.44,
+          "text": "It's not my fault, you know?"
+        },
+        {
+          "startTime": 154.44,
+          "endTime": 159.44,
+          "text": "It's not my fault, you know?"
+        },
+        {
+          "startTime": 159.44,
+          "endTime": 166.44,
+          "text": "It's not my fault, you know?"
+        },
+        {
+          "startTime": 166.44,
+          "endTime": 176.44,
+          "text": "Are you ready? Of course you're ready. You're a rock star."
+        },
+        {
+          "startTime": 176.44,
+          "endTime": 194.44,
+          "text": "Are you ready? Of course you're ready. You're a rock star."
+        },
+        {
+          "startTime": 194.44,
+          "endTime": 213.44,
+          "text": "How's it looking, buddy? We should have about ten minutes. Well, that's perfect. We're only one. All systems go! Yeah, you go! Go! Go, guys! Go, go, go!"
+        },
+        {
+          "startTime": 213.44,
+          "endTime": 242.44,
+          "text": "That's nice. Nothing to worry about, don't. Don't. There she is. Now, you'll love her. She's your passion. Be... be tender to her. Be honest."
+        },
+        {
+          "startTime": 242.44,
+          "endTime": 249.44,
+          "text": "Be tender. Remind her what love is."
+        },
+        {
+          "startTime": 272.44,
+          "endTime": 298.44,
+          "text": "And action! Memory overriding progress."
+        },
+        {
+          "startTime": 298.44,
+          "endTime": 305.44,
+          "text": "You're a jerk, dog! Oh, I'm sorry! Sorry."
+        },
+        {
+          "startTime": 315.44,
+          "endTime": 337.44,
+          "text": "Look, Celia, we have to follow our passions. You have your robotics. And I just want to be awesome in space."
+        },
+        {
+          "startTime": 337.44,
+          "endTime": 346.44,
+          "text": "Get her coming. Two minutes left. Two minutes. Speak up, dog. Speak up, please!"
+        },
+        {
+          "startTime": 346.44,
+          "endTime": 356.44,
+          "text": "Why don't you just admit that you're freaked out by my robot hand?"
+        },
+        {
+          "startTime": 356.44,
+          "endTime": 364.44,
+          "text": "Listen, Celia, I was young and a dick, but there's no reason to destroy the world."
+        },
+        {
+          "startTime": 364.44,
+          "endTime": 371.44,
+          "text": "Why did you do this? We already tried that one."
+        },
+        {
+          "startTime": 371.44,
+          "endTime": 390.44,
+          "text": "You broke my heart. I know. You forgot me on earth. I know."
+        },
+        {
+          "startTime": 390.44,
+          "endTime": 397.44,
+          "text": "I should just brush you."
+        },
+        {
+          "startTime": 397.44,
+          "endTime": 413.44,
+          "text": "I'm sorry. Who died, Lib?"
+        },
+        {
+          "startTime": 419.44,
+          "endTime": 426.44,
+          "text": "Am I poor? This time."
+        },
+        {
+          "startTime": 449.44,
+          "endTime": 456.44,
+          "text": "I'm not a good man. I'm not a good man. I'm not a good man."
+        },
+        {
+          "startTime": 479.44,
+          "endTime": 486.44,
+          "text": "I'm sorry."
+        },
+        {
+          "startTime": 503.44,
+          "endTime": 510.44,
+          "text": "Memory overriding, 90%. Captain, we have to abort."
+        },
+        {
+          "startTime": 510.44,
+          "endTime": 525.44,
+          "text": "The world's changed, Celia."
+        },
+        {
+          "startTime": 534.44,
+          "endTime": 540.44,
+          "text": "Maybe we can too. Memory overriding complete."
+        },
+        {
+          "startTime": 558.44,
+          "endTime": 564.44,
+          "text": "You know, there's a lesson to learn from this."
+        },
+        {
+          "startTime": 564.44,
+          "endTime": 570.44,
+          "text": "Could've gone worse."
+        },
+        {
+          "startTime": 589.44,
+          "endTime": 595.44,
+          "text": "The world's changed."
+        },
+        {
+          "startTime": 619.44,
+          "endTime": 625.44,
+          "text": "The world's changed."
+        },
+        {
+          "startTime": 649.44,
+          "endTime": 655.44,
+          "text": "The world's changed."
+        },
+        {
+          "startTime": 679.44,
+          "endTime": 685.44,
+          "text": "The world's changed."
+        },
+        {
+          "startTime": 709.44,
+          "endTime": 715.44,
+          "text": "The world's changed."
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,26 @@
+diff --git a/node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/src/main/kotlin/com/facebook/react/utils/AgpConfiguratorUtils.kt b/node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/src/main/kotlin/com/facebook/react/utils/AgpConfiguratorUtils.kt
+index c4a7b35..f5a7f22 100644
+--- a/node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/src/main/kotlin/com/facebook/react/utils/AgpConfiguratorUtils.kt
++++ b/node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/src/main/kotlin/com/facebook/react/utils/AgpConfiguratorUtils.kt
+@@ -79,6 +79,10 @@ internal object AgpConfiguratorUtils {
+ 
+   fun configureBuildConfigFieldsForLibraries(appProject: Project) {
+     appProject.rootProject.allprojects { subproject ->
++      // AGP 9 rejects registering callbacks again after a library's DSL is finalized.
++      val configuredKey = "com.facebook.react.internal.buildConfigConfigured"
++      if (subproject.extensions.extraProperties.has(configuredKey)) return@allprojects
++      subproject.extensions.extraProperties.set(configuredKey, true)
+       subproject.pluginManager.withPlugin("com.android.library") {
+         subproject.extensions
+             .getByType(LibraryAndroidComponentsExtension::class.java)
+@@ -113,6 +117,10 @@ internal object AgpConfiguratorUtils {
+ 
+   fun configureNamespaceForLibraries(appProject: Project) {
+     appProject.rootProject.allprojects { subproject ->
++      // AGP 9 rejects registering callbacks again after a library's DSL is finalized.
++      val configuredKey = "com.facebook.react.internal.namespaceConfigured"
++      if (subproject.extensions.extraProperties.has(configuredKey)) return@allprojects
++      subproject.extensions.extraProperties.set(configuredKey, true)
+       subproject.pluginManager.withPlugin("com.android.library") {
+         subproject.extensions
+             .getByType(LibraryAndroidComponentsExtension::class.java)

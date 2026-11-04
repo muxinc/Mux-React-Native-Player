@@ -8,6 +8,29 @@ npx expo install @mux/mux-react-native-player expo-linear-gradient
 
 `expo-linear-gradient` is a peer dependency used by the custom controls.
 
+### Native player versions
+
+- iOS: [Mux Player Swift 1.8.1](https://github.com/muxinc/mux-player-swift/releases/tag/v1.8.1)
+  or a compatible newer 1.x release, resolved by Swift Package Manager.
+- Android: [Mux Player Android 1.6.0](https://github.com/muxinc/mux-player-android/releases/tag/v1.6.0),
+  with Media3 UI and session dependencies defaulting to 1.11.0 to match the player.
+  Requires Android `compileSdk` 37 or newer; the config plugin sets it to 37.
+  This does not change the app's `minSdk` or `targetSdk`.
+
+Android API 37 also needs a compatible host build toolchain. Google's supported
+minimum is [Android Gradle Plugin 9.1.1 with Gradle 9.3.1 and JDK 17](https://developer.android.com/build/releases/agp-9-1-0-release-notes).
+The plugin does not upgrade the host app's AGP or Gradle wrapper. Expo SDK 57's
+default toolchain needs the [host configuration and versioned compatibility patches](native-player-upgrade.md)
+used by this repository's example before building Mux Android 1.6.0.
+
+After upgrading this package, rebuild the native app. For existing iOS projects,
+run `pod install` in the app's iOS directory to refresh the Swift package requirement,
+then let Xcode resolve packages during the next build. A JavaScript reload alone
+does not update the native players.
+
+See the [native upgrade notes](native-player-upgrade.md) for host-toolchain
+requirements, example build settings, and verification limitations.
+
 ## 2. Add the config plugin
 
 In `app.json` (or `app.config.js`):
@@ -39,7 +62,7 @@ In `app.json` (or `app.config.js`):
 ### What the plugin configures for you
 
 - **iOS**: adds a build phase that embeds `MuxCore.framework` (required by Mux Player Swift), and the `UIBackgroundModes` entry when PiP/background audio is enabled
-- **Android**: adds the Mux Maven repository, `INTERNET` / `ACCESS_NETWORK_STATE` permissions, and the Kotlin/compileSdk versions Mux Player Android needs
+- **Android**: adds the Mux Maven repository, `INTERNET` / `ACCESS_NETWORK_STATE` permissions, and `compileSdk` 37. Kotlin remains managed by the host app's Expo/React Native version.
 
 ## 3. Rebuild the native app
 

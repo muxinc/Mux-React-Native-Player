@@ -1,3 +1,4 @@
+#if os(iOS)
 import AVKit
 import ExpoModulesCore
 import UIKit
@@ -34,3 +35,16 @@ final class MuxAirPlayButtonView: ExpoView {
     ])
   }
 }
+
+#else
+import ExpoModulesCore
+
+/// Registration remains available for autolinking; tvOS has no route picker.
+public final class MuxAirPlayButtonModule: Module {
+  public func definition() -> ModuleDefinition {
+    Name("MuxAirPlayButton")
+    View(MuxAirPlayButtonView.self) {}
+  }
+}
+final class MuxAirPlayButtonView: ExpoView {}
+#endif

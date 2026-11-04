@@ -1,6 +1,12 @@
 # Mux Robots
 
-[Mux Robots](https://www.mux.com) can generate an AI summary, chapters, key moments, and a transcript for a video. With `controls="custom"`, the player renders Robots buttons that trigger these on demand — chapters become timeline markers, key moments become highlighted ranges, and tapping a chapter / key moment / transcript line seeks to its start.
+On TV, `controls="custom"` uses dedicated remote-focused Summary, Chapters, Moments,
+and Transcript panels. Supplied content works without an asset ID; asynchronous
+callbacks require one. Timed rows seek and return focus to the panel’s opening
+button. The TV preview uses panel navigation rather than the mobile timeline
+markers described below. See [TV support](tv-support.md#custom-controls-and-robots).
+
+[Mux Robots](https://www.mux.com) can generate an AI summary, chapters, key moments, and a transcript for a video. With `controls="custom"`, the player renders Robots buttons that trigger these on demand — chapters become timeline markers while the Chapters panel is open, key moments become highlighted ranges while the Moments panel is open, and tapping a chapter / key moment / transcript line seeks to its start.
 
 Robots is **opt-in**: without the `robots` prop you get a standard video player and nothing on this page applies.
 
@@ -25,7 +31,7 @@ app (this package) → robots callbacks → your backend → Mux API (with your 
 />
 ```
 
-A reference backend implementation lives in this repo at [`example/scripts/robots-server.cjs`](../example/scripts/robots-server.cjs) — port it to your own stack (Next.js API route, Lambda, etc.).
+A reference backend implementation lives in this repo at [`example/scripts/robots-server.cjs`](../example/scripts/robots-server.cjs) — port it to your own stack (Next.js API route, Lambda, etc.). It reuses an asset's completed job before starting a new one (Mux keeps jobs for 30 days), and serves the transcript from the asset's ready caption track rather than a Robots workflow.
 
 Each callback receives `{ assetId, duration, currentTime }` and must resolve to the corresponding shape:
 
@@ -57,6 +63,10 @@ A Robots button renders only when its action is possible:
 - the matching callback (`onSummarize`, `onGenerateChapters`, `onFindKeyMoments`) or pre-computed data exists.
 
 No callback for an action → no button for it. This lets you enable just chapters, for example.
+
+Available features also appear in the **…** menu at the top right, where viewers switch
+each top-row button on or off. Summary, Chapters and Moments start on; Transcript starts
+off (unless it is the only feature) and can be switched on from that menu.
 
 ## Pre-computed data (no backend at all)
 
