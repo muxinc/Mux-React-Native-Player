@@ -1,6 +1,6 @@
 # PRD — Apple TV and Android TV Support
 
-Status: Implementing · Created: 2026-09-10 · Implementation baseline: package 0.1.15
+Status: Released in 0.2.0 · Created: 2026-09-10 · Implementation baseline: package 0.1.15
 
 ## Product decision
 
@@ -19,7 +19,7 @@ physical-device gates below do not block the current development phase and must
 not be reported as passed.
 
 This document tracks implementation and release qualification. Local build and
-runtime evidence is recorded in [TV validation](tv-validation.md) and below; physical-TV release gates remain pending. The existing [feature roadmap](PRD.md) continues to track general
+runtime evidence is recorded in [TV validation](tv-validation.md) and below; physical-device testing for 0.2.0 is noted in the execution log. The existing [feature roadmap](PRD.md) continues to track general
 player features; this document owns TV-specific acceptance and release gates.
 
 ## Problem and desired outcome
@@ -97,7 +97,7 @@ its required tasks and acceptance checks to be complete.
 | 2 | Android TV playback and controls | 1 | Implemented; qualifying | Emulator smoke passes; physical/fixture gates pending |
 | 3 | Apple TV playback and controls | 1 | Implemented; qualifying | Simulator remote smoke passes; physical/fixture gates pending |
 | 4 | Cross-platform validation | 2, 3 | In progress | Root; physical devices pending |
-| 5 | Initial TV release | 4 | Preparation | Root; release qualification pending |
+| 5 | Initial TV release | 4 | Released | `0.2.0-beta.0` on `beta`, then `0.2.0` on `latest` after physical-device testing |
 | 6 | Custom TV controls and Robots | Native foundation; authorized 2026-09-11 | Complete for simulator/emulator scope | Remote/Robots checks pass; physical release gate deferred |
 
 The native preview followed phases 0 → 1 → 2 → 3 → 4 → 5. The user authorized
@@ -322,6 +322,8 @@ task IDs and evidence such as a PR, build log, test result, or device recording.
 
 | 2026-09-11 | P6.1–P6.4 | Custom TV transport, seek image previews, tracks/settings and four Robots panels implemented. Android TV navigation/seek/captions/quality focus passes; Apple final2 XCTest passes the complete custom remote and panel sequence (121 seconds). | Final Back priority regression and Apple smoke pass; physical/production gates remain separate |
 | 2026-09-11 | P6.5 | Caching/preload, PiP, feeds and TV DRM remain deferred; custom controls require none of them. | Revisit only with a concrete TV use case |
+| 2026-11-03 | P5 beta | `0.2.0-beta.0` published to npm under the `beta` tag | Test the beta on physical TV hardware |
+| 2026-11-12 | P5 release | Maintainer tested `0.2.0-beta.0` on physical Apple TV and Android TV devices; playback works. Promoted unchanged to `0.2.0` on `latest` | Scope TV DRM separately |
 
 ## References
 

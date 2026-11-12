@@ -1,7 +1,7 @@
 {
   "name": "@mux/mux-react-native-player",
   "version": "0.2.0-beta.0",
-  "description": "Mux-owned React Native video player powered by Mux Player for iOS and Android.",
+  "description": "Mux-owned React Native video player for iOS, Android, Apple TV, and Android TV, with Mux Data built in.",
   "license": "MIT",
   "main": "build/index.js",
   "types": "build/index.d.ts",
@@ -54,7 +54,9 @@
     "react-native",
     "expo",
     "video",
-    "player"
+    "player",
+    "tvos",
+    "android-tv"
   ],
   "peerDependencies": {
     "expo": "*",

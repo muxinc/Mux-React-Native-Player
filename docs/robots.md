@@ -3,8 +3,8 @@
 On TV, `controls="custom"` uses dedicated remote-focused Summary, Chapters, Moments,
 and Transcript panels. Supplied content works without an asset ID; asynchronous
 callbacks require one. Timed rows seek and return focus to the panel’s opening
-button. The TV preview uses panel navigation rather than the mobile timeline
-markers described below. See [TV support](tv-support.md#custom-controls-and-robots).
+button. TV uses panel navigation rather than the mobile timeline markers described
+below. See [TV support](tv-support.md#custom-controls-and-robots).
 
 [Mux Robots](https://www.mux.com) can generate an AI summary, chapters, key moments, and a transcript for a video. With `controls="custom"`, the player renders Robots buttons that trigger these on demand — chapters become timeline markers while the Chapters panel is open, key moments become highlighted ranges while the Moments panel is open, and tapping a chapter / key moment / transcript line seeks to its start.
 

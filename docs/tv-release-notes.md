@@ -1,15 +1,13 @@
-# Release notes — 0.2.0-beta.0 (TV beta)
+# Release notes — 0.2.0 (Apple TV and Android TV)
 
-`0.2.0-beta.0` is published to npm under the `beta` tag. The `latest` tag stays on
-0.1.x, so a normal install does not pick up TV support. Install the beta explicitly:
+`0.2.0` adds Apple TV and Android TV support and is the `latest` release on npm:
 
 ```sh
-npm install @mux/mux-react-native-player@beta
+npm install @mux/mux-react-native-player
 npx expo install expo-font
 ```
 
-Fixes ship as `0.2.0-beta.N`. `0.2.0` moves to `latest` once the physical-device
-checks below pass. No signed distribution archive or store submission has occurred.
+The code is the same as `0.2.0-beta.0`. If you installed the beta, move to `0.2.0`.
 
 ## Added
 
@@ -45,7 +43,7 @@ previews, tracks/settings, and optional Robots panels. Native controls remain th
 default and can be selected explicitly. `controls="none"` remains
 available, with host-owned remote controls and exit navigation. Fullscreen entry,
 exit, and focus restoration belong to the TV host screen. Phone orientation APIs,
-the AirPlay button, PiP, and preload are not part of this TV preview.
+the AirPlay button, PiP, and preload are not supported on TV.
 
 Equivalent `replace()` calls are now idempotent. Real changes, including a new
 token for the same playback ID, create a new internal source identity. Imperative
@@ -57,11 +55,8 @@ constraints for signed streams belong in JWT claims. tvOS DRM sources are explic
 rejected. Android's existing Widevine backend has not been certified on TV hardware.
 TV DRM is deferred by the confirmed release scope; public and signed playback ship first.
 
-## Validation and release gate
+## Validation
 
-See [validation evidence](tv-validation.md) and the [tracked PRD](TV-PRD.md).
-Simulator and emulator playback checks support this beta.
-Physical remote navigation, signed/live fixtures, analytics, accessibility, sustained
-playback, performance, and the full mobile regression matrix remain required before
-`0.2.0` moves to `latest` and TV support is advertised as production-ready. Until
-then, treat the beta as a testing build.
+Simulator and emulator checks are recorded in [validation evidence](tv-validation.md)
+and the [tracked PRD](TV-PRD.md). `0.2.0-beta.0` was then tested on physical Apple TV
+and Android TV devices before this release.

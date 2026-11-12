@@ -1,9 +1,8 @@
 # Apple TV and Android TV support
 
-Status: beta (`0.2.0-beta.0` on the npm `beta` tag); physical-device release qualification is pending.
-Install it with `npm install @mux/mux-react-native-player@beta`. The `latest` tag stays on 0.1.x until then.
-The [TV PRD](TV-PRD.md) tracks acceptance evidence and remaining release gates.
-Recorded automated checks use simulators and emulators.
+Status: released in `0.2.0`. Install it with `npm install @mux/mux-react-native-player`.
+Automated checks run on simulators and emulators, and the release was tested on
+physical Apple TV and Android TV devices. The [TV PRD](TV-PRD.md) tracks acceptance evidence.
 
 ## Architecture and dependency baseline
 
@@ -148,7 +147,7 @@ See the PRD validation matrix for the distinction between implemented and verifi
 | `captionStyle` | Native/OS caption rendering; verify actual appearance on TV | Existing native caption styling |
 | `startupBufferDuration`, `timeUpdateEventInterval` | Native buffer preference and event interval | Existing native configuration |
 | `allowsAirPlay` / AirPlay button | Mobile button not loaded on TV | No AirPlay button |
-| `allowsPictureInPicture` | Disabled for initial TV preview | Disabled for initial TV preview |
+| `allowsPictureInPicture` | Disabled on TV | Disabled on TV |
 | `enableNowPlaying` | AVKit/OS owns system transport; flag is a no-op on tvOS | Opt-in MediaSession in native-control mode; detached for custom/none, no mobile notification |
 | `preloadMuxVideo`, cancel preload APIs | Best-effort no-ops; `isMuxVideoPreloadSupported()` is false | Same; TV caching/preload not advertised |
 | `storyboardToken`, storyboard/chapter UI | Custom overlay supports storyboard seek previews and Robots chapter navigation | Same |

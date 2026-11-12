@@ -1,6 +1,6 @@
 # Mux React Native Player Docs
 
-A React Native video player with built-in Mux Data and Mux Robots integrations. Playback is delegated to [`mux-player-swift`](https://github.com/muxinc/mux-player-swift) on iOS and [`mux-player-android`](https://github.com/muxinc/mux-player-android) on Android. The TV preview uses AVPlayer with Mux Data on tvOS and the existing Android backend on Android TV.
+A React Native video player with built-in Mux Data and Mux Robots integrations. Playback is delegated to [`mux-player-swift`](https://github.com/muxinc/mux-player-swift) on iOS and [`mux-player-android`](https://github.com/muxinc/mux-player-android) on Android. On TV, playback uses AVPlayer with Mux Data on tvOS and the existing Android backend on Android TV.
 
 - [Getting Started](getting-started.md) — install, config plugin, and your first player
 - [Orientation & Fullscreen](orientation-and-fullscreen.md) — letting the player rotate to landscape, theater mode, Info.plist setup
@@ -9,7 +9,7 @@ A React Native video player with built-in Mux Data and Mux Robots integrations. 
 - [Accessibility](accessibility.md) — screen readers, reduced motion, caption styling
 - [Mux Robots](robots.md) — AI summaries, chapters, and key moments with a secure backend
 - [TV Support](tv-support.md) — implementation capabilities and [validation evidence](tv-validation.md)
-- [TV Release Notes](tv-release-notes.md) — 0.2.0-beta.0 scope and integration changes
+- [TV Release Notes](tv-release-notes.md) — 0.2.0 scope and integration changes
 - [TV Support PRD](TV-PRD.md) — Apple TV and Android TV implementation, phased checklists, and release acceptance criteria
 
 ## Requirements

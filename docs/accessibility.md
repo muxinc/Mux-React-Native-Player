@@ -53,7 +53,7 @@ To override, pass `captionStyle`:
 > maintainers — verify with a captioned asset and a development build.
 
 
-## TV preview
+## TV
 
 TV custom controls provide icon buttons with accessibility labels, visible
 focus/selection states, trapped panels, Back/Menu dismissal, and initiating-control

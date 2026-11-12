@@ -8,7 +8,7 @@ A React native video player with built-in Mux Data and Mux Robots integrations. 
 
 - iOS: [`muxinc/mux-player-swift`](https://github.com/muxinc/mux-player-swift)
 - Android / Android TV: [`muxinc/mux-player-android`](https://github.com/muxinc/mux-player-android)
-- tvOS (beta): AVPlayer / AVPlayerViewController with Mux Data
+- tvOS: AVPlayer / AVPlayerViewController with Mux Data
 
 ## Documentation
 
@@ -20,7 +20,7 @@ Full guides live in [`docs/`](https://github.com/muxinc/Mux-React-Native-Player/
 - [Feeds & Shorts](https://github.com/muxinc/Mux-React-Native-Player/blob/main/docs/feeds.md) — `useMuxVideoFeed`
 - [Mux Robots](https://github.com/muxinc/Mux-React-Native-Player/blob/main/docs/robots.md)
 
-- [TV Support](docs/tv-support.md) — beta, installed with `@mux/mux-react-native-player@beta`; capabilities, limitations, and [TV example setup](example-tv/README.md)
+- [TV Support](docs/tv-support.md) — Apple TV and Android TV capabilities, limitations, and [TV example setup](example-tv/README.md)
 
 ## Requirements
 
@@ -85,7 +85,7 @@ export default function Player() {
 }
 ```
 
-`controls`: `"native"` for platform controls, `"custom"` for the mobile or TV JavaScript controls, `"none"` for the bare video surface. The TV overlay uses remote focus and includes Robots panels. With `"none"`, the TV host must provide its own accessible controls and exit navigation. See the [TV support guide](docs/tv-support.md) for preview limitations.
+`controls`: `"native"` for platform controls, `"custom"` for the mobile or TV JavaScript controls, `"none"` for the bare video surface. The TV overlay uses remote focus and includes Robots panels. With `"none"`, the TV host must provide its own accessible controls and exit navigation. See the [TV support guide](docs/tv-support.md) for TV limitations.
 
 ## Source Options
 
@@ -112,7 +112,7 @@ type MuxVideoSource = {
 ```
 
 - `metadata.envKey` enables Mux Data.
-- `drmToken` requires `playbackToken`. tvOS rejects DRM sources in this preview; Android TV DRM is not certified.
+- `drmToken` requires `playbackToken`. tvOS rejects DRM sources; Android TV DRM is not certified.
 - The source is mutable — pass it from state and the player will reload when it changes. Replacing an equivalent source is a no-op; use `replay()` to restart it.
 
 ## Player Commands
